@@ -9,10 +9,39 @@ local function debugPrint(message)
     end
 end
 
+local function getBrandingPayload()
+    local chromeTitle = BrandingConfig.ChromeTitle
+    if not chromeTitle or chromeTitle == '' then
+        chromeTitle = ('%s · %s'):format(BrandingConfig.Region or '', BrandingConfig.Department or '')
+    end
+
+    return {
+        region = BrandingConfig.Region or 'Land Niedersachsen',
+        department = BrandingConfig.Department or 'Polizeiinspektion Hannover',
+        chromeTitle = chromeTitle,
+        logoUrl = BrandingConfig.LogoUrl or 'logo.svg',
+        logoAlt = BrandingConfig.LogoAlt or 'Dienststellenlogo',
+        appTitle = BrandingConfig.AppTitle or 'Polizei-Eignungsprüfung',
+        subtitle = BrandingConfig.Subtitle or 'Auswahlverfahren – digitale Eignungsprüfung',
+        certificateTitle = BrandingConfig.CertificateTitle or 'Zertifikat über die bestandene Eignungsprüfung',
+        staffLabel = BrandingConfig.StaffLabel or 'Personalwesen',
+    }
+end
+
+local function sendBranding()
+    SendNUIMessage({
+        type = 'police_exam:branding',
+        branding = getBrandingPayload()
+    })
+end
+
 local function setVisible(visible)
     isOpen = visible
     SetNuiFocus(visible, visible)
     SetNuiFocusKeepInput(false)
+    if visible then
+        sendBranding()
+    end
     SendNUIMessage({
         type = 'police_exam:visibility',
         visible = visible
@@ -118,6 +147,7 @@ AddEventHandler('onClientResourceStart', function(startedResource)
     end
 
     SetNuiFocus(false, false)
+    sendBranding()
     SendNUIMessage({
         type = 'police_exam:visibility',
         visible = false

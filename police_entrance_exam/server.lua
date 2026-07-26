@@ -128,6 +128,22 @@ local function getEvaluationText(percentage)
     return 'kritisch'
 end
 
+local function getGradeNote(percentage)
+    if percentage >= 90 then
+        return { note = '1', label = 'Sehr gut' }
+    elseif percentage >= 80 then
+        return { note = '2', label = 'Gut' }
+    elseif percentage >= 70 then
+        return { note = '3', label = 'Befriedigend' }
+    elseif percentage >= 60 then
+        return { note = '4', label = 'Ausreichend' }
+    elseif percentage >= 50 then
+        return { note = '5', label = 'Mangelhaft' }
+    end
+
+    return { note = '6', label = 'Ungenügend' }
+end
+
 local function evaluateAnswers(answers, completedAt)
     answers = type(answers) == 'table' and answers or {}
     local categories = { 'LOGIC', 'VERBAL', 'JUDGMENT', 'CONCENTRATION' }
@@ -165,6 +181,7 @@ local function evaluateAnswers(answers, completedAt)
     end
 
     local totalPercentage = totalMaxScore > 0 and (totalScore / totalMaxScore) * 100 or 0
+    local grade = getGradeNote(totalPercentage)
     local overallRating = 'NICHT_AUSREICHEND'
     local finalDecision = 'NICHT_BESTANDEN'
     local decisionLabel = 'Nicht bestanden'
@@ -190,6 +207,8 @@ local function evaluateAnswers(answers, completedAt)
         totalMaxScore = totalMaxScore,
         totalPercentage = totalPercentage,
         overallRating = overallRating,
+        gradeNote = grade.note,
+        gradeLabel = grade.label,
         categoryScores = categoryScores,
         completedAt = completedAt,
         finalDecision = finalDecision,
@@ -240,7 +259,13 @@ local function generateCandidateId()
         checksum = checksum + (tonumber(digits:sub(index, index)) or 0) * (index + 1)
     end
 
-    return ('PIH-EAV-%s-%s-%d-%d'):format(year, date, sequence, checksum % 10)
+    return ('%s-%s-%s-%d-%d'):format(
+        BrandingConfig.CandidateIdPrefix or 'PIH-EAV',
+        year,
+        date,
+        sequence,
+        checksum % 10
+    )
 end
 
 local function certificateNumberExists(certificateNumber)
@@ -266,7 +291,8 @@ local function generateCertificateNumber(record)
         compactId = tostring(math.random(10000000, 99999999))
     end
 
-    local base = ('PIH-ZERT-%s-%s'):format(completedYear, compactId)
+    local prefix = BrandingConfig.CertificatePrefix or 'PIH-ZERT'
+    local base = ('%s-%s-%s'):format(prefix, completedYear, compactId)
     if not certificateNumberExists(base) then
         return base
     end

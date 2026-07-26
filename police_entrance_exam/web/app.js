@@ -8,10 +8,24 @@
   const SECTIONS = DATA.sections || {};
   const root = document.getElementById('app');
   const tabletStage = document.getElementById('tablet-stage');
+  const nuiBackdrop = document.getElementById('nui-backdrop');
+  const certificateOverlay = document.getElementById('certificate-overlay');
   const closeBtn = document.getElementById('close-nui');
   const themeBtn = document.getElementById('theme-toggle');
   const isNui = typeof window.GetParentResourceName === 'function';
   const THEME_KEY = 'police_exam_theme';
+
+  const DEFAULT_BRANDING = {
+    region: 'Land Niedersachsen',
+    department: 'Polizeiinspektion Hannover',
+    chromeTitle: 'Land Niedersachsen · Polizeiinspektion Hannover',
+    logoUrl: 'logo.svg',
+    logoAlt: 'Dienststellenlogo',
+    appTitle: 'Polizei-Eignungsprüfung',
+    subtitle: 'Auswahlverfahren – digitale Eignungsprüfung',
+    certificateTitle: 'Zertifikat über die bestandene Eignungsprüfung',
+    staffLabel: 'Personalwesen',
+  };
 
   const state = {
     visible: !isNui,
@@ -34,6 +48,8 @@
     clearRecordsConfirm: false,
     lastIncident: { type: '', at: 0 },
     theme: 'light',
+    branding: { ...DEFAULT_BRANDING },
+    certificateRecord: null,
   };
 
   let examTimer = null;
@@ -99,6 +115,11 @@
   }
 
   function setTabletVisible(visible) {
+    if (nuiBackdrop) {
+      nuiBackdrop.classList.toggle('hidden', !visible);
+      nuiBackdrop.classList.toggle('is-visible', visible);
+      nuiBackdrop.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
     if (!tabletStage) return;
     tabletStage.classList.toggle('hidden', !visible);
     tabletStage.setAttribute('aria-hidden', visible ? 'false' : 'true');
@@ -109,6 +130,138 @@
       void scene.offsetWidth;
       scene.classList.add('is-entering');
     }
+    if (!visible) hideCertificateModal();
+  }
+
+  function applyBranding(branding = {}) {
+    state.branding = { ...DEFAULT_BRANDING, ...branding };
+    const b = state.branding;
+    document.title = `${b.appTitle} · ${b.region}`;
+    const chromeTitle = document.getElementById('tablet-chrome-title');
+    if (chromeTitle) chromeTitle.textContent = b.chromeTitle || `${b.region} · ${b.department}`;
+    if (root) root.setAttribute('aria-label', b.appTitle);
+  }
+
+  function getGradeInfo(evaluation) {
+    if (!evaluation) return { note: '–', label: '–' };
+    if (evaluation.gradeNote) {
+      return { note: evaluation.gradeNote, label: evaluation.gradeLabel || '–' };
+    }
+    const pct = Number(evaluation.totalPercentage || 0);
+    if (pct >= 90) return { note: '1', label: 'Sehr gut' };
+    if (pct >= 80) return { note: '2', label: 'Gut' };
+    if (pct >= 70) return { note: '3', label: 'Befriedigend' };
+    if (pct >= 60) return { note: '4', label: 'Ausreichend' };
+    if (pct >= 50) return { note: '5', label: 'Mangelhaft' };
+    return { note: '6', label: 'Ungenügend' };
+  }
+
+  function buildCertificateDocument(record) {
+    const b = state.branding;
+    const evaluation = record.evaluation || {};
+    const grade = getGradeInfo(evaluation);
+    const scoreRows = Object.values(evaluation.categoryScores || {}).map((score) => el('tr', {},
+      el('td', { text: categoryLabel(score.category) }),
+      el('td', { text: `${score.score}/${score.maxScore}` }),
+      el('td', { text: `${Number(score.percentage || 0).toFixed(0)}%` }),
+      el('td', { text: score.evaluation }),
+    ));
+
+    return el('article', { className: 'certificate-document', id: 'certificate-print-area' },
+      el('header', { className: 'certificate-doc-header' },
+        el('div', { className: 'certificate-doc-logo' },
+          el('img', { src: b.logoUrl, alt: b.logoAlt }),
+        ),
+        el('div', { className: 'certificate-doc-brand' },
+          el('div', { className: 'eyebrow', text: b.region }),
+          el('h2', { text: b.department }),
+        ),
+      ),
+      el('h3', { className: 'certificate-doc-title', text: b.certificateTitle }),
+      el('p', { className: 'certificate-doc-text', text: `Hiermit wird bestätigt, dass ${record.candidateName} die digitale Eignungsprüfung im Rahmen des behördlichen Auswahlverfahrens erfolgreich abgelegt hat.` }),
+      el('div', { className: 'certificate-doc-meta' },
+        el('div', { className: 'certificate-meta-box' },
+          el('div', { className: 'label', text: 'Name' }),
+          el('strong', { text: record.candidateName }),
+        ),
+        el('div', { className: 'certificate-meta-box' },
+          el('div', { className: 'label', text: 'Verfahrensnummer' }),
+          el('strong', { text: record.candidateId }),
+        ),
+        el('div', { className: 'certificate-meta-box' },
+          el('div', { className: 'label', text: 'Prüfungsdatum' }),
+          el('strong', { text: formatDate(record.completedAt, true) }),
+        ),
+        el('div', { className: 'certificate-meta-box' },
+          el('div', { className: 'label', text: 'Gesamtergebnis' }),
+          el('strong', { text: `${Number(evaluation.totalPercentage || 0).toFixed(1)}% · ${evaluation.decisionLabel || 'Bestanden'}` }),
+        ),
+        el('div', { className: 'certificate-grade-box' },
+          el('div', {},
+            el('div', { className: 'label', text: 'Note' }),
+            el('div', { className: 'certificate-grade-label', text: grade.label }),
+          ),
+          el('div', { className: 'certificate-grade-note', text: grade.note }),
+        ),
+      ),
+      el('h4', { text: 'Leistungsübersicht nach Prüfungsbereichen' }),
+      el('table', { className: 'certificate-score-table' },
+        el('thead', {},
+          el('tr', {},
+            el('th', { text: 'Bereich' }),
+            el('th', { text: 'Punkte' }),
+            el('th', { text: 'Quote' }),
+            el('th', { text: 'Bewertung' }),
+          ),
+        ),
+        el('tbody', {}, ...scoreRows),
+      ),
+      el('p', { className: 'certificate-doc-text small muted', text: evaluation.decisionReason || '' }),
+      el('footer', { className: 'certificate-doc-footer' },
+        el('div', {},
+          el('div', { className: 'label', text: 'Zertifikatsnummer' }),
+          el('strong', { text: record.certificateNumber || '–' }),
+          el('div', { className: 'small muted', style: { marginTop: '6px' }, text: `Ausgestellt am ${formatDate(record.certificateIssuedAt, true)}` }),
+        ),
+        el('div', {},
+          el('div', { className: 'label', text: 'Ausstellende Stelle' }),
+          el('div', { className: 'certificate-signature', text: record.certificateSignatureName || record.certificateIssuedBy || b.staffLabel }),
+          el('div', { className: 'small muted', text: b.department }),
+        ),
+      ),
+    );
+  }
+
+  function hideCertificateModal() {
+    state.certificateRecord = null;
+    if (!certificateOverlay) return;
+    certificateOverlay.classList.add('hidden');
+    certificateOverlay.setAttribute('aria-hidden', 'true');
+    mount(certificateOverlay, el('div'));
+  }
+
+  function showCertificateModal(record) {
+    if (!record?.certificateNumber || !certificateOverlay) return;
+    state.certificateRecord = record;
+    mount(certificateOverlay,
+      el('div', { className: 'certificate-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Zertifikat' },
+        el('div', { className: 'certificate-modal-toolbar' },
+          el('strong', { text: 'Zertifikat' }),
+          el('div', { className: 'inline-actions' },
+            el('button', { className: 'btn btn-secondary', id: 'certificate-close', type: 'button', text: 'Schließen' }),
+            el('button', { className: 'btn btn-primary', id: 'certificate-print', type: 'button', text: 'Drucken' }),
+          ),
+        ),
+        buildCertificateDocument(record),
+      ),
+    );
+    certificateOverlay.classList.remove('hidden');
+    certificateOverlay.setAttribute('aria-hidden', 'false');
+    document.getElementById('certificate-close')?.addEventListener('click', hideCertificateModal);
+    document.getElementById('certificate-print')?.addEventListener('click', () => window.print());
+    certificateOverlay.onclick = (event) => {
+      if (event.target === certificateOverlay) hideCertificateModal();
+    };
   }
 
   function finishViewEnter(node) {
@@ -230,13 +383,14 @@
     return SECTIONS[category]?.title || category;
   }
 
-  function buildLogoBrand(subtitle = 'Auswahlverfahren – digitale Eignungsprüfung') {
+  function buildLogoBrand(subtitle) {
+    const b = state.branding;
     return el('div', { className: 'brand' },
-      el('div', { className: 'logo-box' }, el('img', { src: 'logo.svg', alt: 'Polizeistern' })),
+      el('div', { className: 'logo-box' }, el('img', { src: b.logoUrl, alt: b.logoAlt })),
       el('div', {},
-        el('div', { className: 'eyebrow', text: 'Land Niedersachsen' }),
-        el('h1', { text: 'Polizeiinspektion Hannover' }),
-        el('div', { className: 'muted', text: subtitle }),
+        el('div', { className: 'eyebrow', text: b.region }),
+        el('h1', { text: b.department }),
+        el('div', { className: 'muted', text: subtitle || b.subtitle }),
       ),
     );
   }
@@ -260,7 +414,7 @@
   }
 
   function renderHome() {
-    const openLoginBtn = el('button', { className: 'btn btn-secondary', id: 'open-login', type: 'button' }, icon('lock'), ' Personalwesen');
+    const openLoginBtn = el('button', { className: 'btn btn-secondary', id: 'open-login', type: 'button' }, icon('lock'), ` ${state.branding.staffLabel}`);
     const nameInput = el('input', { className: 'input', id: 'candidate-name', autocomplete: 'off', placeholder: 'Max Mustermann', required: true });
     const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true });
     const codeInput = el('input', { className: 'input code-input', id: 'candidate-code', maxlength: '9', placeholder: 'AB3K-7HNP', required: true });
@@ -274,7 +428,7 @@
               el('div', { className: 'hero-pattern' }),
               el('span', { className: 'pill' }, el('span', { className: 'pill-dot' }), ' Digitaler Eignungstest'),
               el('h2', { text: 'Behördliches Auswahlverfahren für Bewerberinnen und Bewerber' }),
-              el('p', { text: 'Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem Personalwesen zur Verfügung.' }),
+              el('p', { text: `Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem ${state.branding.staffLabel} zur Verfügung.` }),
               el('div', { className: 'stat-grid' },
                 el('div', { className: 'stat' }, el('span', { text: 'Dauer' }), el('strong', { text: '25 Min.' })),
                 el('div', { className: 'stat' }, el('span', { text: 'Bereiche' }), el('strong', { text: '4 Module' })),
@@ -285,7 +439,7 @@
               el('div', { className: 'form-header-icon' }, icon('user')),
               el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
               el('h2', { text: 'Prüfung starten' }),
-              el('p', { className: 'muted', text: 'Name, Geburtsdatum und den einmaligen Zugangscode des Personalwesens eingeben.' }),
+              el('p', { className: 'muted', text: `Name, Geburtsdatum und den einmaligen Zugangscode des ${state.branding.staffLabel} eingeben.` }),
               el('form', { id: 'candidate-form' },
                 field('Vollständiger Name', nameInput),
                 field('Geburtsdatum', birthInput),
@@ -344,7 +498,7 @@
       el('div', { className: 'shell login-page' },
         el('div', { className: 'login-split' },
           el('aside', { className: 'login-brand' },
-            buildLogoBrand('Interner Zugang Personalwesen'),
+            buildLogoBrand(`Interner Zugang ${state.branding.staffLabel}`),
             el('div', { className: 'login-brand-body' },
               el('h2', { text: 'Zugang für autorisiertes Personal' }),
               el('p', { text: 'Verwaltung von Prüfungsakten, Bewerber-Zugangscodes und Zertifikatsausstellung.' }),
@@ -352,7 +506,7 @@
           ),
           el('section', { className: 'login-panel' },
             el('div', { className: 'form-header-icon' }, icon('lock')),
-            el('h2', { text: 'Personalwesen Login' }),
+            el('h2', { text: `${state.branding.staffLabel} Login` }),
             el('p', { className: 'muted', text: 'Die Anmeldung wird ausschließlich serverseitig geprüft.' }),
             el('form', { id: 'login-form' },
               field('Benutzername', el('input', { className: 'input', id: 'staff-user', autocomplete: 'username', placeholder: 'Benutzername eingeben', required: true })),
@@ -380,7 +534,7 @@
       const result = await rpc('auth:login', { username, password });
       if (!result.success) throw new Error('Benutzername oder Passwort ist falsch.');
       state.staffName = result.displayName || username;
-      state.staffRank = result.rank || 'Personalwesen';
+      state.staffRank = result.rank || state.branding.staffLabel;
       state.view = 'admin';
       await refreshAdminData();
       startAdminPoll();
@@ -714,7 +868,7 @@
       state.result = result.receipt;
       state.pendingRecord = null;
       state.view = 'result';
-      state.info = 'Die Prüfung wurde erfolgreich an das Personalwesen übermittelt.';
+      state.info = `Die Prüfung wurde erfolgreich an das ${state.branding.staffLabel} übermittelt.`;
       state.error = '';
     } catch (error) {
       state.error = `Speichern fehlgeschlagen: ${error.message || 'Unbekannter Fehler'}`;
@@ -772,13 +926,13 @@
             el('div', { className: 'login-divider' }),
             el('div', { className: 'result-icon-wrap' }, icon('check')),
             el('h2', { text: 'Abgabe erfolgreich' }),
-            el('p', { text: 'Ihre Prüfung wurde gespeichert und an das Personalwesen zur internen Prüfung übermittelt.' }),
+            el('p', { text: `Ihre Prüfung wurde gespeichert und an das ${state.branding.staffLabel} zur internen Prüfung übermittelt.` }),
             notice('info', icon('info'), el('span', { text: 'Das Ergebnis sowie eine mögliche Zertifikatsausstellung werden ausschließlich im Admin-Dashboard bearbeitet und in dieser Ansicht nicht angezeigt.' })),
             el('div', { className: 'detail-grid result-details' },
               el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Bewerber' }), el('strong', { text: receipt.candidateName })),
               el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Verfahrensnummer' }), el('strong', { text: receipt.candidateId })),
               el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Abgegeben am' }), el('strong', { text: formatDate(receipt.completedAt, true) })),
-              el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Status' }), el('strong', { text: 'Beim Personalwesen eingegangen' })),
+              el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Status' }), el('strong', { text: `Beim ${state.branding.staffLabel} eingegangen` })),
             ),
             el('div', { className: 'result-actions' },
               el('button', { className: 'btn btn-primary', id: 'result-home', type: 'button', text: 'Zur Startseite' }),
@@ -848,6 +1002,7 @@
     if (!record) return el('div', { className: 'empty', text: 'Noch keine Prüfungsakte vorhanden.' });
 
     const isPassed = record.evaluation?.finalDecision === 'BESTANDEN';
+    const grade = getGradeInfo(record.evaluation);
     const scoreRows = Object.values(record.evaluation?.categoryScores || {}).map((score) => el('tr', {},
       el('td', { text: categoryLabel(score.category) }),
       el('td', { text: `${score.score}/${score.maxScore}` }),
@@ -863,10 +1018,10 @@
         el('br'),
         el('span', { className: 'small', text: `Ausgestellt am ${formatDate(record.certificateIssuedAt, true)} durch ${record.certificateIssuedBy || '–'}` }),
       )
-      : el('div', { className: 'notice notice-info', style: { marginTop: '16px' }, text: isPassed ? 'Die Prüfung ist bestanden. Das Zertifikat kann jetzt durch das Personalwesen ausgestellt werden.' : 'Für eine nicht bestandene Prüfung kann kein Zertifikat ausgestellt werden.' });
+      : el('div', { className: 'notice notice-info', style: { marginTop: '16px' }, text: isPassed ? 'Die Prüfung ist bestanden. Das Zertifikat kann jetzt ausgestellt werden.' : 'Für eine nicht bestandene Prüfung kann kein Zertifikat ausgestellt werden.' });
 
     const certificateButton = record.certificateNumber
-      ? el('button', { className: 'btn btn-success', type: 'button', disabled: true, text: 'Zertifikat ausgestellt' })
+      ? el('button', { className: 'btn btn-primary', id: 'view-certificate', type: 'button', text: 'Zertifikat anzeigen' })
       : el('button', { className: 'btn btn-success', id: 'issue-certificate', type: 'button', disabled: !isPassed, text: 'Zertifikat ausstellen' });
 
     const deleteControls = state.deleteConfirmRecordId === record.recordId
@@ -901,6 +1056,10 @@
         el('div', { className: 'detail-box' },
           el('div', { className: 'small muted', text: 'Gesamtergebnis' }),
           el('strong', { className: isPassed ? 'result-pass' : 'result-fail', text: `${Number(record.evaluation?.totalPercentage || 0).toFixed(1)}% · ${record.evaluation?.decisionLabel || ''}` }),
+        ),
+        el('div', { className: 'detail-box' },
+          el('div', { className: 'small muted', text: 'Note' }),
+          el('strong', { text: `${grade.note} · ${grade.label}` }),
         ),
       ),
       el('table', { className: 'score-table' },
@@ -981,7 +1140,7 @@
           el('div', { className: 'admin-layout' },
             el('aside', { className: 'card sidebar' },
               el('div', { className: 'eyebrow', text: 'Verwaltung' }),
-              el('h2', { text: 'Personalwesen' }),
+              el('h2', { text: state.branding.staffLabel }),
               el('div', { className: 'admin-stats' },
                 el('div', { className: 'admin-stat' }, el('strong', { text: String(state.records.length) }), el('span', { text: 'Akten' })),
                 el('div', { className: 'admin-stat' }, el('strong', { text: String(passed) }), el('span', { text: 'Bestanden' })),
@@ -1014,6 +1173,10 @@
     document.getElementById('confirm-clear-records')?.addEventListener('click', clearRecords);
     document.getElementById('cancel-clear-records')?.addEventListener('click', cancelClearRecords);
     document.getElementById('issue-certificate')?.addEventListener('click', issueCertificate);
+    document.getElementById('view-certificate')?.addEventListener('click', () => {
+      const record = state.records.find((item) => item.recordId === state.selectedRecordId);
+      if (record) showCertificateModal(record);
+    });
     document.getElementById('refresh-admin')?.addEventListener('click', async () => { await refreshAdminData(); render(); });
   }
 
@@ -1106,11 +1269,13 @@
   async function issueCertificate() {
     const record = state.records.find((item) => item.recordId === state.selectedRecordId);
     if (!record) return;
+    let issuedRecord = null;
     try {
       const result = await rpc('record:issueCertificate', { recordId: record.recordId });
       const certificateNumber = result.record?.certificateNumber;
       if (!certificateNumber) throw new Error('Der Server hat kein Zertifikat zurückgegeben.');
       await refreshAdminData();
+      issuedRecord = state.records.find((item) => item.recordId === record.recordId);
       state.info = `Zertifikat ${certificateNumber} wurde ausgestellt.`;
       state.error = '';
     } catch (error) {
@@ -1118,6 +1283,7 @@
       state.info = '';
     }
     render();
+    if (issuedRecord) showCertificateModal(issuedRecord);
   }
 
   async function logout() {
@@ -1148,10 +1314,16 @@
 
   closeBtn?.addEventListener('click', closeNui);
   themeBtn?.addEventListener('click', toggleTheme);
+  applyBranding();
   initTheme();
 
   window.addEventListener('message', async (event) => {
     const message = event.data || {};
+    if (message.type === 'police_exam:branding' && message.branding) {
+      applyBranding(message.branding);
+      if (state.visible) render();
+      return;
+    }
     if (message.type === 'police_exam:visibility') {
       state.visible = message.visible === true;
       if (state.visible) resetSession();
@@ -1163,6 +1335,11 @@
   });
 
   window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && state.certificateRecord) {
+      event.preventDefault();
+      hideCertificateModal();
+      return;
+    }
     if (event.key === 'Escape' && state.view !== 'exam' && state.view !== 'saving') closeNui();
     if (state.view === 'saving') { event.preventDefault(); return; }
     if (state.view !== 'exam') return;

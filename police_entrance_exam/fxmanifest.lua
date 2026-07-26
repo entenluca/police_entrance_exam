@@ -8,7 +8,10 @@ version '1.2.0'
 
 ui_page 'web/index.html'
 
-shared_script 'config.lua'
+shared_scripts {
+    'config.lua',
+    'branding_config.lua'
+}
 client_script 'client.lua'
 server_scripts {
     'server_config.lua',

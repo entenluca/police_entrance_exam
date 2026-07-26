@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Polizei-Eignungsprüfung · Land Niedersachsen</title>
+  <title>Polizei-Eignungsprüfung</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
@@ -17,6 +17,7 @@
   </script>
 </head>
 <body>
+  <div id="nui-backdrop" class="hidden" aria-hidden="true"></div>
   <div id="tablet-stage" class="hidden" aria-hidden="true">
     <div class="tablet-scene">
       <div class="tablet-device" role="presentation">
@@ -31,7 +32,7 @@
             </div>
             <div class="tablet-screen">
               <header class="tablet-chrome">
-                <span class="tablet-chrome-title">Land Niedersachsen · Polizeiinspektion Hannover</span>
+                <span class="tablet-chrome-title" id="tablet-chrome-title">–</span>
                 <div class="tablet-chrome-actions">
                   <button class="tablet-theme-btn" id="theme-toggle" type="button" aria-label="Dunkelmodus" title="Dunkelmodus">
                     <svg class="theme-icon theme-icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
@@ -50,6 +51,7 @@
       </div>
     </div>
   </div>
+  <div id="certificate-overlay" class="hidden" aria-hidden="true"></div>
   <script src="questions.js"></script>
   <script src="dom.js"></script>
   <script src="app.js"></script>

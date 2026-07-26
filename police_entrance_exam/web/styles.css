@@ -132,6 +132,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Vollbild-Hintergrund (Hell/Dunkel über gesamten Bildschirm) */
+#nui-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-medium) var(--ease-smooth), background var(--duration-medium) var(--ease-smooth);
+  background: rgba(240, 244, 248, 0.94);
+}
+
+#nui-backdrop.is-visible {
+  opacity: 1;
+}
+
+[data-theme="dark"] #nui-backdrop.is-visible {
+  background: rgba(6, 10, 18, 0.97);
+}
+
 /* ─── Tablet-Rahmen ─────────────────────────────────────────── */
 
 #tablet-stage {
@@ -1153,7 +1172,7 @@ a { color: var(--navy-600); }
   place-items: center;
   border-radius: var(--radius-lg);
   background: linear-gradient(145deg, var(--navy-900), var(--navy-700));
-  border: 2px solid var(--gold-500);
+  border: 2px solid rgba(255, 255, 255, 0.22);
   box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.1);
   flex-shrink: 0;
 }
@@ -1340,15 +1359,15 @@ h2 {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  border: 1px solid rgba(201, 162, 39, 0.4);
-  background: rgba(201, 162, 39, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(14, 165, 233, 0.12);
   padding: 8px 14px;
   border-radius: var(--radius-full);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--gold-400);
+  color: var(--sky-400);
   margin-bottom: var(--space-6);
 }
 
@@ -1356,7 +1375,7 @@ h2 {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--gold-400);
+  background: var(--sky-400);
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -2429,4 +2448,224 @@ h2 {
   .login-brand-body { padding-top: 12px; }
   .login-panel { padding: 24px 20px; }
   .status-page { padding: 16px; }
+  .certificate-modal { padding: 12px; }
+}
+
+/* ─── Zertifikat ────────────────────────────────────────────── */
+
+#certificate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(6, 10, 18, 0.72);
+  backdrop-filter: blur(6px);
+  animation: fadeIn var(--duration-normal) var(--ease-out) both;
+}
+
+.certificate-modal {
+  width: min(820px, 100%);
+  max-height: min(92vh, 900px);
+  overflow: auto;
+  border-radius: var(--radius-2xl);
+  background: var(--card);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-xl);
+  animation: fadeInScale var(--duration-medium) var(--ease-spring) both;
+}
+
+.certificate-modal-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 2;
+}
+
+.certificate-document {
+  padding: 28px 32px 32px;
+  color: var(--text);
+}
+
+.certificate-doc-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-bottom: 18px;
+  border-bottom: 2px solid var(--navy-800);
+  margin-bottom: 22px;
+}
+
+.certificate-doc-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--navy-900), var(--navy-700));
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.certificate-doc-logo img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.certificate-doc-brand .eyebrow {
+  margin-bottom: 4px;
+}
+
+.certificate-doc-brand h2 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.certificate-doc-title {
+  text-align: center;
+  margin: 0 0 20px;
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-size: 1.5rem;
+  color: var(--navy-800);
+}
+
+[data-theme="dark"] .certificate-doc-title {
+  color: var(--text);
+}
+
+.certificate-doc-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.certificate-meta-box {
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--line);
+}
+
+.certificate-meta-box .label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.certificate-grade-box {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--info-bg), var(--bg-subtle));
+  border: 1px solid var(--info-border);
+}
+
+.certificate-grade-note {
+  font-size: 2.5rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--navy-700);
+}
+
+[data-theme="dark"] .certificate-grade-note {
+  color: var(--sky-400);
+}
+
+.certificate-grade-label {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.certificate-score-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 18px 0;
+  font-size: 0.875rem;
+}
+
+.certificate-score-table th,
+.certificate-score-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+
+.certificate-score-table th {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--bg-subtle);
+}
+
+.certificate-doc-footer {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.certificate-signature {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-style: italic;
+  font-size: 1.1rem;
+  margin-top: 8px;
+}
+
+.certificate-doc-text {
+  line-height: 1.65;
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #certificate-overlay,
+  #certificate-overlay * {
+    visibility: visible;
+  }
+
+  #certificate-overlay {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    background: #fff;
+    backdrop-filter: none;
+  }
+
+  .certificate-modal-toolbar {
+    display: none !important;
+  }
+
+  .certificate-modal {
+    box-shadow: none;
+    border: none;
+    max-height: none;
+    width: 100%;
+  }
+
+  .certificate-document {
+    padding: 24px;
+  }
 }
