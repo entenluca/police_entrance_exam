@@ -129,19 +129,28 @@ local function getEvaluationText(percentage)
 end
 
 local function getGradeNote(percentage)
-    if percentage >= 90 then
+    if percentage >= 95 then
         return { note = '1', label = 'Sehr gut' }
-    elseif percentage >= 80 then
+    elseif percentage >= 85 then
         return { note = '2', label = 'Gut' }
-    elseif percentage >= 70 then
+    elseif percentage >= 75 then
         return { note = '3', label = 'Befriedigend' }
-    elseif percentage >= 60 then
+    elseif percentage >= 68 then
         return { note = '4', label = 'Ausreichend' }
     elseif percentage >= 50 then
         return { note = '5', label = 'Mangelhaft' }
     end
 
     return { note = '6', label = 'Ungenügend' }
+end
+
+local function getExamRules()
+    local exam = type(Config.Exam) == 'table' and Config.Exam or {}
+    return {
+        passPercentage = tonumber(exam.PassPercentage) or 78,
+        categoryMinimum = tonumber(exam.CategoryMinimum) or 55,
+        excellentPercentage = tonumber(exam.ExcellentPercentage) or 88,
+    }
 end
 
 local function evaluateAnswers(answers, completedAt)
@@ -182,24 +191,39 @@ local function evaluateAnswers(answers, completedAt)
 
     local totalPercentage = totalMaxScore > 0 and (totalScore / totalMaxScore) * 100 or 0
     local grade = getGradeNote(totalPercentage)
+    local rules = getExamRules()
     local overallRating = 'NICHT_AUSREICHEND'
     local finalDecision = 'NICHT_BESTANDEN'
     local decisionLabel = 'Nicht bestanden'
     local decisionReason = 'Die im Auswahlverfahren geforderte Mindestleistung wurde nicht erreicht.'
 
-    if totalPercentage >= 85 then
-        overallRating = 'SEHR_GEEIGNET'
+    local weakCategories = {}
+    for _, category in ipairs(categories) do
+        local score = categoryScores[category]
+        if score.percentage < rules.categoryMinimum then
+            weakCategories[#weakCategories + 1] = category
+        end
+    end
+
+    local categoriesPassed = #weakCategories == 0
+    local totalPassed = totalPercentage >= rules.passPercentage
+
+    if totalPassed and categoriesPassed then
+        if totalPercentage >= rules.excellentPercentage then
+            overallRating = 'SEHR_GEEIGNET'
+            decisionReason = 'Die geforderte Gesamtleistung wurde deutlich übertroffen.'
+        else
+            overallRating = 'GEEIGNET'
+            decisionReason = 'Die geforderte Mindestleistung wurde in allen Bereichen erreicht.'
+        end
         finalDecision = 'BESTANDEN'
         decisionLabel = 'Bestanden'
-        decisionReason = 'Die geforderte Gesamtleistung wurde deutlich übertroffen.'
-    elseif totalPercentage >= 70 then
-        overallRating = 'GEEIGNET'
-        finalDecision = 'BESTANDEN'
-        decisionLabel = 'Bestanden'
-        decisionReason = 'Die geforderte Mindestleistung wurde erreicht.'
+    elseif totalPassed and not categoriesPassed then
+        overallRating = 'TEILWEISE_GEEIGNET'
+        decisionReason = ('Die Gesamtquote wurde erreicht, jedoch nicht in allen Bereichen die Mindestanforderung von %d%%.'):format(rules.categoryMinimum)
     elseif totalPercentage >= 50 then
         overallRating = 'TEILWEISE_GEEIGNET'
-        decisionReason = 'Die Gesamtleistung blieb unterhalb der festgelegten Bestehensgrenze.'
+        decisionReason = ('Die Gesamtleistung blieb unter der Bestehensgrenze von %d%%.'):format(rules.passPercentage)
     end
 
     return {
@@ -214,7 +238,11 @@ local function evaluateAnswers(answers, completedAt)
         finalDecision = finalDecision,
         decisionLabel = decisionLabel,
         decisionReason = decisionReason,
-        passed = finalDecision == 'BESTANDEN'
+        passed = finalDecision == 'BESTANDEN',
+        passPercentage = rules.passPercentage,
+        categoryMinimum = rules.categoryMinimum,
+        categoriesPassed = categoriesPassed,
+        weakCategories = weakCategories,
     }
 end
 

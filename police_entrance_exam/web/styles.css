@@ -140,15 +140,34 @@ body {
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--duration-medium) var(--ease-smooth), background var(--duration-medium) var(--ease-smooth);
-  background: rgba(240, 244, 248, 0.94);
+  background: transparent;
 }
 
 #nui-backdrop.is-visible {
   opacity: 1;
 }
 
-[data-theme="dark"] #nui-backdrop.is-visible {
-  background: rgba(6, 10, 18, 0.97);
+#nui-backdrop.backdrop-light.is-visible {
+  background: rgba(8, 18, 32, 0.52);
+}
+
+#nui-backdrop.backdrop-dark.is-visible {
+  background: rgba(3, 7, 14, 0.96);
+}
+
+html.nui-open,
+body.nui-open {
+  background: transparent;
+}
+
+html.nui-open.backdrop-light,
+body.nui-open.backdrop-light {
+  background: rgba(8, 18, 32, 0.52) !important;
+}
+
+html.nui-open.backdrop-dark,
+body.nui-open.backdrop-dark {
+  background: rgba(3, 7, 14, 0.96) !important;
 }
 
 /* ─── Tablet-Rahmen ─────────────────────────────────────────── */

@@ -25,6 +25,11 @@
     subtitle: 'Auswahlverfahren – digitale Eignungsprüfung',
     certificateTitle: 'Zertifikat über die bestandene Eignungsprüfung',
     staffLabel: 'Personalwesen',
+    examRules: {
+      passPercentage: 78,
+      categoryMinimum: 55,
+      excellentPercentage: 88,
+    },
   };
 
   const state = {
@@ -51,6 +56,16 @@
     branding: { ...DEFAULT_BRANDING },
     certificateRecord: null,
   };
+
+  function syncBackdropTheme() {
+    const themeClass = state.theme === 'dark' ? 'backdrop-dark' : 'backdrop-light';
+    const removeClass = state.theme === 'dark' ? 'backdrop-light' : 'backdrop-dark';
+    [nuiBackdrop, document.documentElement, document.body].forEach((node) => {
+      if (!node) return;
+      node.classList.remove(removeClass);
+      node.classList.add(themeClass);
+    });
+  }
 
   let examTimer = null;
   let adminPoll = null;
@@ -115,6 +130,14 @@
   }
 
   function setTabletVisible(visible) {
+    document.documentElement.classList.toggle('nui-open', visible);
+    document.body.classList.toggle('nui-open', visible);
+    if (!visible) {
+      document.documentElement.classList.remove('backdrop-light', 'backdrop-dark');
+      document.body.classList.remove('backdrop-light', 'backdrop-dark');
+    } else {
+      syncBackdropTheme();
+    }
     if (nuiBackdrop) {
       nuiBackdrop.classList.toggle('hidden', !visible);
       nuiBackdrop.classList.toggle('is-visible', visible);
@@ -134,7 +157,14 @@
   }
 
   function applyBranding(branding = {}) {
-    state.branding = { ...DEFAULT_BRANDING, ...branding };
+    state.branding = {
+      ...DEFAULT_BRANDING,
+      ...branding,
+      examRules: {
+        ...DEFAULT_BRANDING.examRules,
+        ...(branding.examRules || {}),
+      },
+    };
     const b = state.branding;
     document.title = `${b.appTitle} · ${b.region}`;
     const chromeTitle = document.getElementById('tablet-chrome-title');
@@ -148,10 +178,10 @@
       return { note: evaluation.gradeNote, label: evaluation.gradeLabel || '–' };
     }
     const pct = Number(evaluation.totalPercentage || 0);
-    if (pct >= 90) return { note: '1', label: 'Sehr gut' };
-    if (pct >= 80) return { note: '2', label: 'Gut' };
-    if (pct >= 70) return { note: '3', label: 'Befriedigend' };
-    if (pct >= 60) return { note: '4', label: 'Ausreichend' };
+    if (pct >= 95) return { note: '1', label: 'Sehr gut' };
+    if (pct >= 85) return { note: '2', label: 'Gut' };
+    if (pct >= 75) return { note: '3', label: 'Befriedigend' };
+    if (pct >= 68) return { note: '4', label: 'Ausreichend' };
     if (pct >= 50) return { note: '5', label: 'Mangelhaft' };
     return { note: '6', label: 'Ungenügend' };
   }
@@ -307,6 +337,7 @@
     state.theme = nextTheme;
     document.documentElement.dataset.theme = nextTheme;
     try { localStorage.setItem(THEME_KEY, nextTheme); } catch (_) {}
+    syncBackdropTheme();
     if (themeBtn) {
       const label = nextTheme === 'dark' ? 'Hellmodus' : 'Dunkelmodus';
       themeBtn.setAttribute('aria-label', label);
@@ -414,6 +445,7 @@
   }
 
   function renderHome() {
+    const rules = state.branding.examRules;
     const openLoginBtn = el('button', { className: 'btn btn-secondary', id: 'open-login', type: 'button' }, icon('lock'), ` ${state.branding.staffLabel}`);
     const nameInput = el('input', { className: 'input', id: 'candidate-name', autocomplete: 'off', placeholder: 'Max Mustermann', required: true });
     const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true });
@@ -444,7 +476,8 @@
                 field('Vollständiger Name', nameInput),
                 field('Geburtsdatum', birthInput),
                 field('Zugangscode', codeInput),
-                notice('info', icon('info'), el('span', { text: 'Während der Prüfung werden Rechtsklick, Kopieren und typische Screenshot-Tasten blockiert. Das Verlassen der Ansicht wird protokolliert.' })),
+                notice('info', icon('info'), el('span', { text: `Während der Prüfung werden Rechtsklick, Kopieren und typische Screenshot-Tasten blockiert. Das Verlassen der Ansicht wird protokolliert.` })),
+                notice('info', icon('info'), el('span', { text: `Bestehensgrenze: mindestens ${rules.passPercentage}% Gesamtergebnis und mindestens ${rules.categoryMinimum}% in jedem der vier Prüfungsbereiche.` })),
                 el('div', { style: { height: '12px' } }),
                 buildNotices(),
                 el('button', { className: 'btn btn-primary', style: { width: '100%', marginTop: '16px' }, type: 'submit', text: 'Auswahlprüfung starten →' }),
@@ -1074,6 +1107,9 @@
         el('tbody', {}, ...scoreRows),
       ),
       el('div', { className: 'notice notice-info', style: { marginTop: '16px' }, text: record.evaluation?.decisionReason || '' }),
+      record.evaluation?.categoriesPassed === false && normalizeArray(record.evaluation?.weakCategories).length
+        ? el('div', { className: 'notice notice-warning', style: { marginTop: '12px' }, text: `Unter Mindestanforderung in: ${normalizeArray(record.evaluation.weakCategories).map((c) => categoryLabel(c)).join(', ')}` })
+        : null,
       el('p', { className: 'small muted', text: `Sicherheitsereignisse: ${normalizeArray(record.securityIncidents).length} · Bearbeitungsstatus: ${record.reviewStatus || 'AUSSTEHEND'}` }),
       certificateBox,
       deleteControls,

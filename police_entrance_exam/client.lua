@@ -25,6 +25,11 @@ local function getBrandingPayload()
         subtitle = BrandingConfig.Subtitle or 'Auswahlverfahren – digitale Eignungsprüfung',
         certificateTitle = BrandingConfig.CertificateTitle or 'Zertifikat über die bestandene Eignungsprüfung',
         staffLabel = BrandingConfig.StaffLabel or 'Personalwesen',
+        examRules = {
+            passPercentage = Config.Exam and Config.Exam.PassPercentage or 78,
+            categoryMinimum = Config.Exam and Config.Exam.CategoryMinimum or 55,
+            excellentPercentage = Config.Exam and Config.Exam.ExcellentPercentage or 88,
+        },
     }
 end
 
