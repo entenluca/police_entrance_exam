@@ -8,17 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
-  <script>
-    try {
-      if (localStorage.getItem('police_exam_theme') === 'dark') {
-        document.documentElement.dataset.theme = 'dark';
-      }
-    } catch (_) {}
-  </script>
 </head>
 <body>
-  <div id="nui-backdrop" class="hidden" aria-hidden="true"></div>
-  <div id="tablet-stage" class="hidden" aria-hidden="true">
+  <div id="tablet-stage" class="theme-root hidden" aria-hidden="true" data-theme="light">
     <div class="tablet-scene">
       <div class="tablet-device" role="presentation">
         <div class="tablet-side-controls" aria-hidden="true">
@@ -45,13 +37,13 @@
                 </div>
               </header>
               <div id="app" class="tablet-screen-body" role="application" aria-label="Polizei-Eignungsprüfung"></div>
+              <div id="certificate-overlay" class="theme-root hidden" aria-hidden="true" data-theme="light"></div>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-  <div id="certificate-overlay" class="hidden" aria-hidden="true"></div>
   <script src="questions.js"></script>
   <script src="dom.js"></script>
   <script src="app.js"></script>

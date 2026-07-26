@@ -8,7 +8,6 @@
   const SECTIONS = DATA.sections || {};
   const root = document.getElementById('app');
   const tabletStage = document.getElementById('tablet-stage');
-  const nuiBackdrop = document.getElementById('nui-backdrop');
   const certificateOverlay = document.getElementById('certificate-overlay');
   const closeBtn = document.getElementById('close-nui');
   const themeBtn = document.getElementById('theme-toggle');
@@ -57,14 +56,18 @@
     certificateRecord: null,
   };
 
-  function syncBackdropTheme() {
-    const themeClass = state.theme === 'dark' ? 'backdrop-dark' : 'backdrop-light';
-    const removeClass = state.theme === 'dark' ? 'backdrop-light' : 'backdrop-dark';
-    [nuiBackdrop, document.documentElement, document.body].forEach((node) => {
-      if (!node) return;
-      node.classList.remove(removeClass);
-      node.classList.add(themeClass);
-    });
+  function incidentLabel(type) {
+    const labels = {
+      PRINT_SCREEN: 'Screenshot-Versuch',
+      COPY_ATTEMPT: 'Kopierversuch',
+      CUT_ATTEMPT: 'Ausschneiden blockiert',
+      PASTE_ATTEMPT: 'Einfügen blockiert',
+      CONTEXT_MENU: 'Rechtsklick',
+      RESTRICTED_ACTION: 'Gesperrte Aktion',
+      WINDOW_SWITCH: 'Ansicht verlassen',
+      WINDOW_CLOSE: 'Prüfung geschlossen',
+    };
+    return labels[type] || type || 'Ereignis';
   }
 
   let examTimer = null;
@@ -130,19 +133,6 @@
   }
 
   function setTabletVisible(visible) {
-    document.documentElement.classList.toggle('nui-open', visible);
-    document.body.classList.toggle('nui-open', visible);
-    if (!visible) {
-      document.documentElement.classList.remove('backdrop-light', 'backdrop-dark');
-      document.body.classList.remove('backdrop-light', 'backdrop-dark');
-    } else {
-      syncBackdropTheme();
-    }
-    if (nuiBackdrop) {
-      nuiBackdrop.classList.toggle('hidden', !visible);
-      nuiBackdrop.classList.toggle('is-visible', visible);
-      nuiBackdrop.setAttribute('aria-hidden', visible ? 'false' : 'true');
-    }
     if (!tabletStage) return;
     tabletStage.classList.toggle('hidden', !visible);
     tabletStage.setAttribute('aria-hidden', visible ? 'false' : 'true');
@@ -335,9 +325,9 @@
   function applyTheme(theme) {
     const nextTheme = theme === 'dark' ? 'dark' : 'light';
     state.theme = nextTheme;
-    document.documentElement.dataset.theme = nextTheme;
+    tabletStage?.setAttribute('data-theme', nextTheme);
+    certificateOverlay?.setAttribute('data-theme', nextTheme);
     try { localStorage.setItem(THEME_KEY, nextTheme); } catch (_) {}
-    syncBackdropTheme();
     if (themeBtn) {
       const label = nextTheme === 'dark' ? 'Hellmodus' : 'Dunkelmodus';
       themeBtn.setAttribute('aria-label', label);
@@ -445,7 +435,6 @@
   }
 
   function renderHome() {
-    const rules = state.branding.examRules;
     const openLoginBtn = el('button', { className: 'btn btn-secondary', id: 'open-login', type: 'button' }, icon('lock'), ` ${state.branding.staffLabel}`);
     const nameInput = el('input', { className: 'input', id: 'candidate-name', autocomplete: 'off', placeholder: 'Max Mustermann', required: true });
     const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true });
@@ -476,8 +465,6 @@
                 field('Vollständiger Name', nameInput),
                 field('Geburtsdatum', birthInput),
                 field('Zugangscode', codeInput),
-                notice('info', icon('info'), el('span', { text: `Während der Prüfung werden Rechtsklick, Kopieren und typische Screenshot-Tasten blockiert. Das Verlassen der Ansicht wird protokolliert.` })),
-                notice('info', icon('info'), el('span', { text: `Bestehensgrenze: mindestens ${rules.passPercentage}% Gesamtergebnis und mindestens ${rules.categoryMinimum}% in jedem der vier Prüfungsbereiche.` })),
                 el('div', { style: { height: '12px' } }),
                 buildNotices(),
                 el('button', { className: 'btn btn-primary', style: { width: '100%', marginTop: '16px' }, type: 'submit', text: 'Auswahlprüfung starten →' }),
@@ -1030,6 +1017,29 @@
     );
   }
 
+  function buildSecurityLog(record) {
+    const incidents = normalizeArray(record.securityIncidents);
+    if (!incidents.length) {
+      return el('div', { className: 'security-log security-log--empty' },
+        el('div', { className: 'eyebrow', text: 'Sicherheitsprotokoll' }),
+        el('p', { className: 'small muted', text: 'Keine Sicherheitsereignisse während der Prüfung protokolliert.' }),
+      );
+    }
+
+    return el('div', { className: 'security-log' },
+      el('div', { className: 'eyebrow', text: 'Sicherheitsprotokoll' }),
+      el('ul', { className: 'security-log-list' },
+        ...incidents.map((item) => el('li', { className: 'security-log-item' },
+          el('div', { className: 'security-log-head' },
+            el('strong', { text: incidentLabel(item.type) }),
+            el('span', { className: 'small muted', text: formatDate(item.timestamp, true) }),
+          ),
+          el('div', { className: 'small', text: item.message || '–' }),
+        )),
+      ),
+    );
+  }
+
   function buildRecordDetail() {
     const record = state.records.find((item) => item.recordId === state.selectedRecordId);
     if (!record) return el('div', { className: 'empty', text: 'Noch keine Prüfungsakte vorhanden.' });
@@ -1110,7 +1120,8 @@
       record.evaluation?.categoriesPassed === false && normalizeArray(record.evaluation?.weakCategories).length
         ? el('div', { className: 'notice notice-warning', style: { marginTop: '12px' }, text: `Unter Mindestanforderung in: ${normalizeArray(record.evaluation.weakCategories).map((c) => categoryLabel(c)).join(', ')}` })
         : null,
-      el('p', { className: 'small muted', text: `Sicherheitsereignisse: ${normalizeArray(record.securityIncidents).length} · Bearbeitungsstatus: ${record.reviewStatus || 'AUSSTEHEND'}` }),
+      buildSecurityLog(record),
+      el('p', { className: 'small muted', text: `Bearbeitungsstatus: ${record.reviewStatus || 'AUSSTEHEND'}` }),
       certificateBox,
       deleteControls,
       clearControls,
@@ -1386,10 +1397,26 @@
     if (event.key === 'F12') { event.preventDefault(); registerIncident('RESTRICTED_ACTION', 'Entwicklertools wurden blockiert.'); }
   });
 
-  document.addEventListener('contextmenu', (event) => { if (state.view === 'exam') event.preventDefault(); });
-  document.addEventListener('copy', (event) => { if (state.view === 'exam') event.preventDefault(); });
-  document.addEventListener('cut', (event) => { if (state.view === 'exam') event.preventDefault(); });
-  document.addEventListener('paste', (event) => { if (state.view === 'exam') event.preventDefault(); });
+  document.addEventListener('contextmenu', (event) => {
+    if (state.view !== 'exam') return;
+    event.preventDefault();
+    registerIncident('CONTEXT_MENU', 'Rechtsklick während der Prüfung blockiert.');
+  });
+  document.addEventListener('copy', (event) => {
+    if (state.view !== 'exam') return;
+    event.preventDefault();
+    registerIncident('COPY_ATTEMPT', 'Kopieren während der Prüfung blockiert.');
+  });
+  document.addEventListener('cut', (event) => {
+    if (state.view !== 'exam') return;
+    event.preventDefault();
+    registerIncident('CUT_ATTEMPT', 'Ausschneiden während der Prüfung blockiert.');
+  });
+  document.addEventListener('paste', (event) => {
+    if (state.view !== 'exam') return;
+    event.preventDefault();
+    registerIncident('PASTE_ATTEMPT', 'Einfügen während der Prüfung blockiert.');
+  });
   document.addEventListener('visibilitychange', () => {
     if (state.view !== 'exam') return;
     state.blocked = document.hidden;
