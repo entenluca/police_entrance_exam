@@ -249,19 +249,31 @@
   }
 
   function renderLogin() {
-    root.innerHTML = `<div class="shell login-layout"><div class="card login-card">
-      ${logoBrand('Interner Zugang Personalwesen')}
-      <div class="login-divider"></div>
-      <div class="form-header-icon">${icons.lock}</div>
-      <h2>Personalwesen Login</h2>
-      <p class="muted">Die Anmeldung wird ausschließlich serverseitig geprüft.</p>
-      <form id="login-form">
-        <div class="field"><label>Benutzername</label><input class="input" id="staff-user" autocomplete="username" placeholder="Benutzername eingeben" required></div>
-        <div class="field"><label>Passwort</label><input class="input" id="staff-pass" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
-        ${noticeHtml()}
-        <div class="inline-actions" style="margin-top:20px"><button type="button" class="btn btn-secondary" id="login-back">← Zurück</button><button type="submit" class="btn btn-primary">${icons.lock} Anmelden</button></div>
-      </form>
-    </div></div>`;
+    root.innerHTML = `<div class="shell login-page">
+      <div class="login-split">
+        <aside class="login-brand">
+          ${logoBrand('Interner Zugang Personalwesen')}
+          <div class="login-brand-body">
+            <h2>Zugang für autorisiertes Personal</h2>
+            <p>Verwaltung von Prüfungsakten, Bewerber-Zugangscodes und Zertifikatsausstellung.</p>
+          </div>
+        </aside>
+        <section class="login-panel">
+          <div class="form-header-icon">${icons.lock}</div>
+          <h2>Personalwesen Login</h2>
+          <p class="muted">Die Anmeldung wird ausschließlich serverseitig geprüft.</p>
+          <form id="login-form">
+            <div class="field"><label>Benutzername</label><input class="input" id="staff-user" autocomplete="username" placeholder="Benutzername eingeben" required></div>
+            <div class="field"><label>Passwort</label><input class="input" id="staff-pass" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
+            ${noticeHtml()}
+            <div class="login-actions">
+              <button type="button" class="btn btn-secondary" id="login-back">← Zurück</button>
+              <button type="submit" class="btn btn-primary">${icons.lock} Anmelden</button>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>`;
     document.getElementById('login-back').onclick = () => { state.view = 'home'; state.error = ''; render(); };
     document.getElementById('login-form').onsubmit = handleLogin;
   }
@@ -446,20 +458,24 @@
 
   function renderSaving() {
     const hasError = Boolean(state.error);
-    root.innerHTML = `<div class="shell login-layout"><div class="card login-card" style="text-align:center">
-      ${logoBrand('Prüfung wird übermittelt')}
-      <div class="login-divider"></div>
-      ${hasError ? '' : '<div class="spinner"></div>'}
-      <h2>${hasError ? 'Speichern fehlgeschlagen' : 'Abgabe wird gespeichert'}</h2>
-      <p class="muted">Die Antworten und Prüfungsdaten werden sicher in der Prüfungsakte gespeichert.</p>
-      ${hasError ? `<div class="notice notice-error">${icons.info}<span>${h(state.error)}</span></div><button class="btn btn-primary" id="retry-save" style="margin-top:16px">Erneut speichern</button>` : `
-        <div class="saving-steps">
-          <div class="saving-step done"><span class="step-dot"></span>Antworten erfasst</div>
-          <div class="saving-step active"><span class="step-dot"></span>Übermittlung an Server</div>
-          <div class="saving-step"><span class="step-dot"></span>Bestätigung erhalten</div>
+    root.innerHTML = `<div class="shell login-page">
+      <div class="status-page">
+        <div class="status-card card">
+          ${logoBrand('Prüfung wird übermittelt')}
+          <div class="login-divider"></div>
+          ${hasError ? '' : '<div class="spinner"></div>'}
+          <h2>${hasError ? 'Speichern fehlgeschlagen' : 'Abgabe wird gespeichert'}</h2>
+          <p class="muted">Die Antworten und Prüfungsdaten werden sicher in der Prüfungsakte gespeichert.</p>
+          ${hasError ? `<div class="notice notice-error">${icons.info}<span>${h(state.error)}</span></div><button class="btn btn-primary" id="retry-save" style="margin-top:16px">Erneut speichern</button>` : `
+            <div class="saving-steps">
+              <div class="saving-step done"><span class="step-dot"></span>Antworten erfasst</div>
+              <div class="saving-step active"><span class="step-dot"></span>Übermittlung an Server</div>
+              <div class="saving-step"><span class="step-dot"></span>Bestätigung erhalten</div>
+            </div>
+            <div class="notice notice-info" style="margin-top:20px">${icons.info}<span>Bitte die Anwendung nicht schließen.</span></div>`}
         </div>
-        <div class="notice notice-info" style="margin-top:20px">${icons.info}<span>Bitte die Anwendung nicht schließen.</span></div>`}
-    </div></div>`;
+      </div>
+    </div>`;
     document.getElementById('retry-save')?.addEventListener('click', submitPendingRecord);
   }
 
