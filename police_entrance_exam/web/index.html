@@ -10,7 +10,28 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app" class="hidden" role="application" aria-label="Polizei-Eignungsprüfung"></div>
+  <div id="tablet-stage" class="hidden" aria-hidden="true">
+    <div class="tablet-scene">
+      <div class="tablet-device" role="presentation">
+        <div class="tablet-side-controls" aria-hidden="true">
+          <span class="tablet-hardware-btn tablet-hardware-btn--power"></span>
+          <span class="tablet-hardware-btn tablet-hardware-btn--volume"></span>
+        </div>
+        <div class="tablet-chassis">
+          <div class="tablet-bezel">
+            <div class="tablet-camera" aria-hidden="true">
+              <span class="tablet-camera-lens"></span>
+            </div>
+            <div id="app" class="tablet-screen" role="application" aria-label="Polizei-Eignungsprüfung"></div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-secondary tablet-close" id="close-nui" type="button" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        Schließen
+      </button>
+    </div>
+  </div>
   <script src="questions.js"></script>
   <script src="app.js"></script>
 </body>

@@ -5,6 +5,8 @@
   const QUESTIONS = DATA.questions || [];
   const SECTIONS = DATA.sections || {};
   const root = document.getElementById('app');
+  const tabletStage = document.getElementById('tablet-stage');
+  const closeBtn = document.getElementById('close-nui');
   const isNui = typeof window.GetParentResourceName === 'function';
 
   const state = {
@@ -80,7 +82,7 @@
     if (state.staffName) rpc('auth:logout').catch(() => {});
     stopAdminPoll();
     state.visible = false;
-    root.classList.add('hidden');
+    setTabletVisible(false);
     if (isNui) {
       await fetch(`https://${resourceName()}/close`, {
         method: 'POST',
@@ -88,6 +90,13 @@
         body: '{}',
       }).catch(() => {});
     }
+  }
+
+  function setTabletVisible(visible) {
+    if (!tabletStage) return;
+    tabletStage.classList.toggle('hidden', !visible);
+    tabletStage.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    if (closeBtn) closeBtn.hidden = !visible || !isNui;
   }
 
   function resetSession() {
@@ -199,10 +208,9 @@
           </form>
         </div>
       </section>
-    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">' + icons.close + ' Schließen</button>' : ''}`;
+    </div></div>`;
 
     document.getElementById('open-login').onclick = () => { state.view = 'login'; state.error = ''; render(); };
-    document.getElementById('close-nui')?.addEventListener('click', closeNui);
     const codeInput = document.getElementById('candidate-code');
     codeInput.addEventListener('input', () => {
       let value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
@@ -253,9 +261,8 @@
         ${noticeHtml()}
         <div class="inline-actions" style="margin-top:20px"><button type="button" class="btn btn-secondary" id="login-back">← Zurück</button><button type="submit" class="btn btn-primary">${icons.lock} Anmelden</button></div>
       </form>
-    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">' + icons.close + ' Schließen</button>' : ''}`;
+    </div></div>`;
     document.getElementById('login-back').onclick = () => { state.view = 'home'; state.error = ''; render(); };
-    document.getElementById('close-nui')?.addEventListener('click', closeNui);
     document.getElementById('login-form').onsubmit = handleLogin;
   }
 
@@ -476,9 +483,8 @@
         ${noticeHtml()}
         <div class="inline-actions" style="justify-content:center;margin-top:24px"><button class="btn btn-primary" id="result-home">Zur Startseite</button></div>
       </section>
-    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">' + icons.close + ' Schließen</button>' : ''}`;
+    </div></div>`;
     document.getElementById('result-home').onclick = () => { state.view = 'home'; state.candidate = null; state.result = null; state.error = ''; state.info = ''; render(); };
-    document.getElementById('close-nui')?.addEventListener('click', closeNui);
   }
 
   async function refreshAdminData() {
@@ -528,10 +534,9 @@
         </aside>
         <main class="card content">${state.adminTab === 'records' ? renderRecordDetail() : renderCodeManager()}</main>
       </div>
-    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">' + icons.close + ' Schließen</button>' : ''}`;
+    </div></div>`;
 
     document.getElementById('logout').onclick = logout;
-    document.getElementById('close-nui')?.addEventListener('click', closeNui);
     root.querySelectorAll('[data-tab]').forEach((button) => button.onclick = () => { state.adminTab = button.dataset.tab; state.error = ''; state.info = ''; render(); });
     root.querySelectorAll('[data-record]').forEach((button) => button.onclick = () => { state.selectedRecordId = button.dataset.record; state.deleteConfirmRecordId = null; state.clearRecordsConfirm = false; render(); });
     root.querySelectorAll('[data-delete-code]').forEach((button) => button.onclick = () => deleteCode(button.dataset.deleteCode));
@@ -723,8 +728,8 @@
   }
 
   function render() {
-    if (!state.visible) { root.classList.add('hidden'); return; }
-    root.classList.remove('hidden');
+    if (!state.visible) { setTabletVisible(false); return; }
+    setTabletVisible(true);
     if (state.view === 'home') renderHome();
     else if (state.view === 'login') renderLogin();
     else if (state.view === 'exam') renderExam();
@@ -732,6 +737,8 @@
     else if (state.view === 'result') renderResult();
     else if (state.view === 'admin') renderAdmin();
   }
+
+  closeBtn?.addEventListener('click', closeNui);
 
   window.addEventListener('message', async (event) => {
     const message = event.data || {};

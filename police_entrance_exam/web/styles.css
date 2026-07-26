@@ -81,11 +81,160 @@ html, body {
 }
 
 body {
-  overflow-x: hidden;
+  overflow: hidden;
   background: transparent;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Tablet-Rahmen ─────────────────────────────────────────── */
+
+#tablet-stage {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: transparent;
+  z-index: 1;
+}
+
+.tablet-scene {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  animation: tabletEnter 0.55s var(--ease-out) both;
+}
+
+@keyframes tabletEnter {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.tablet-device {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  filter: drop-shadow(0 28px 60px rgba(0, 0, 0, 0.55)) drop-shadow(0 8px 20px rgba(0, 0, 0, 0.35));
+}
+
+.tablet-side-controls {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 14px;
+  padding: 52px 0 0 2px;
+  flex-shrink: 0;
+}
+
+.tablet-hardware-btn {
+  display: block;
+  width: 4px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #c8cdd3 0%, #8b939c 45%, #6d757e 100%);
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.35),
+    inset -1px 0 0 rgba(0, 0, 0, 0.2),
+    1px 0 2px rgba(0, 0, 0, 0.25);
+}
+
+.tablet-hardware-btn--power {
+  height: 34px;
+}
+
+.tablet-hardware-btn--volume {
+  height: 56px;
+}
+
+.tablet-chassis {
+  padding: 10px;
+  border-radius: 28px;
+  background:
+    linear-gradient(145deg, #e8ebef 0%, #b8bec6 18%, #9aa3ad 50%, #8c959f 82%, #a8b0b8 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.12),
+    inset 2px 0 3px rgba(255, 255, 255, 0.2),
+    inset -2px 0 3px rgba(0, 0, 0, 0.08);
+}
+
+.tablet-bezel {
+  position: relative;
+  width: min(88vw, 1180px);
+  aspect-ratio: 16 / 10;
+  padding: 14px 14px 16px;
+  border-radius: 20px;
+  background: linear-gradient(180deg, #1a1a1a 0%, #0a0a0a 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 2px 6px rgba(255, 255, 255, 0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+.tablet-camera {
+  position: absolute;
+  top: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #111;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  display: grid;
+  place-items: center;
+  z-index: 2;
+}
+
+.tablet-camera-lens {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #3d4f6a, #0a1020 70%);
+}
+
+.tablet-screen {
+  flex: 1;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden auto;
+  background: var(--bg);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    inset 0 2px 12px rgba(0, 0, 0, 0.15);
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+.tablet-screen::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tablet-screen::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 6px;
+}
+
+.tablet-close {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 5;
+  box-shadow: var(--shadow-lg);
+}
+
+.tablet-close[hidden] {
+  display: none !important;
 }
 
 button, input, select, textarea { font: inherit; }
@@ -136,7 +285,7 @@ a { color: var(--navy-600); }
 /* ─── Layout ────────────────────────────────────────────────── */
 
 .shell {
-  min-height: 100vh;
+  min-height: 100%;
   padding: var(--space-6);
   background:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(14, 165, 233, 0.08), transparent),
@@ -302,12 +451,6 @@ h2 {
   flex-shrink: 0;
 }
 
-.close-fixed {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  z-index: 100;
-}
 
 /* ─── Home Page ─────────────────────────────────────────────── */
 
@@ -553,7 +696,7 @@ h2 {
 /* ─── Login ─────────────────────────────────────────────────── */
 
 .login-layout {
-  min-height: calc(100vh - 48px);
+  min-height: 100%;
   display: grid;
   place-items: center;
 }
@@ -573,8 +716,9 @@ h2 {
 /* ─── Prüfungsansicht ───────────────────────────────────────── */
 
 .exam-shell {
-  min-height: 100vh;
+  min-height: 100%;
   background: var(--bg);
+  position: relative;
 }
 
 .exam-header {
@@ -786,7 +930,7 @@ h2 {
 /* ─── Block Screen ──────────────────────────────────────────── */
 
 .block-screen {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 999;
   display: grid;
