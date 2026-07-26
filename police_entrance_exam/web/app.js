@@ -7,7 +7,9 @@
   const root = document.getElementById('app');
   const tabletStage = document.getElementById('tablet-stage');
   const closeBtn = document.getElementById('close-nui');
+  const themeBtn = document.getElementById('theme-toggle');
   const isNui = typeof window.GetParentResourceName === 'function';
+  const THEME_KEY = 'police_exam_theme';
 
   const state = {
     visible: !isNui,
@@ -29,6 +31,7 @@
     deleteConfirmRecordId: null,
     clearRecordsConfirm: false,
     lastIncident: { type: '', at: 0 },
+    theme: 'light',
   };
 
   let examTimer = null;
@@ -97,6 +100,28 @@
     tabletStage.classList.toggle('hidden', !visible);
     tabletStage.setAttribute('aria-hidden', visible ? 'false' : 'true');
     if (closeBtn) closeBtn.hidden = !visible || !isNui;
+  }
+
+  function applyTheme(theme) {
+    const nextTheme = theme === 'dark' ? 'dark' : 'light';
+    state.theme = nextTheme;
+    document.documentElement.dataset.theme = nextTheme;
+    try { localStorage.setItem(THEME_KEY, nextTheme); } catch (_) {}
+    if (themeBtn) {
+      const label = nextTheme === 'dark' ? 'Hellmodus' : 'Dunkelmodus';
+      themeBtn.setAttribute('aria-label', label);
+      themeBtn.setAttribute('title', label);
+    }
+  }
+
+  function toggleTheme() {
+    applyTheme(state.theme === 'dark' ? 'light' : 'dark');
+  }
+
+  function initTheme() {
+    let stored = 'light';
+    try { stored = localStorage.getItem(THEME_KEY) || 'light'; } catch (_) {}
+    applyTheme(stored === 'dark' ? 'dark' : 'light');
   }
 
   function resetSession() {
@@ -371,15 +396,116 @@
     state.exam.incidents.push({ type, message, timestamp: new Date().toISOString() });
   }
 
-  function renderExam() {
-    const exam = state.exam;
-    if (!exam) { state.view = 'home'; render(); return; }
-    const question = exam.questions[exam.index];
-    const progress = ((exam.index + 1) / exam.questions.length) * 100;
+  function examQuestionBodyHTML(question, exam) {
     const source = question.text ? `<div class="source-text">${nl2br(question.text)}</div>` : '';
     const stimulus = question.stimulus ? `<div class="source-text stimulus">${question.stimulus}</div>` : '';
     const options = question.options.map((option) => `<button class="option ${exam.selected === option.id ? 'selected' : ''}" data-option="${h(option.id)}" type="button" aria-pressed="${exam.selected === option.id}">
       <span class="option-key">${h(option.id)}</span><span class="option-text">${h(option.text)}</span></button>`).join('');
+    return `<div class="section-tag">${h(categoryLabel(question.category))}</div>
+      <h2 class="question-title">${h(question.title)}</h2>
+      ${source}${stimulus}
+      <div class="question-text">${nl2br(question.question)}</div>
+      <div class="options" role="radiogroup">${options}</div>
+      <div class="exam-actions"><span class="muted small">Antworten können nach dem Fortfahren nicht geändert werden.</span><button class="btn btn-primary" id="next-question" ${exam.selected === null ? 'disabled' : ''}>${exam.index === exam.questions.length - 1 ? 'Prüfung abschließen' : 'Weiter →'}</button></div>`;
+  }
+
+  function bindExamHandlers() {
+    const exam = state.exam;
+    if (!exam) return;
+    root.querySelectorAll('[data-option]').forEach((button) => {
+      button.onclick = () => {
+        exam.selected = button.dataset.option;
+        updateExamSelection();
+      };
+    });
+    const nextBtn = document.getElementById('next-question');
+    if (nextBtn) nextBtn.onclick = () => advanceQuestion(false);
+  }
+
+  function updateExamSelection() {
+    const exam = state.exam;
+    if (!exam) return;
+    root.querySelectorAll('[data-option]').forEach((button) => {
+      const selected = button.dataset.option === exam.selected;
+      button.classList.toggle('selected', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    const nextBtn = document.getElementById('next-question');
+    if (nextBtn) nextBtn.disabled = exam.selected === null;
+  }
+
+  function updateQuestionTimerVisibility() {
+    const exam = state.exam;
+    const row = root.querySelector('.timer-row');
+    if (!row || !exam) return;
+    let questionTimer = row.querySelector('[data-question-timer]');
+    if (exam.questionTime !== null) {
+      const label = `${icons.clock} Frage ${exam.questionTime}s`;
+      if (!questionTimer) {
+        row.insertAdjacentHTML('afterbegin', `<div class="timer" data-question-timer>${label}</div>`);
+      } else {
+        questionTimer.innerHTML = label;
+      }
+    } else if (questionTimer) {
+      questionTimer.remove();
+    }
+  }
+
+  function updateExamBlockScreen() {
+    const shell = root.querySelector('.exam-shell');
+    if (!shell) return;
+    const existing = shell.querySelector('.block-screen');
+    if (state.blocked) {
+      if (!existing) {
+        shell.insertAdjacentHTML('beforeend', `<div class="block-screen"><div class="block-screen-inner">${icons.shield}<h2>Prüfungsansicht gesperrt</h2><p>Der Bildschirminhalt wurde zum Schutz der Prüfung ausgeblendet.<br>Kehren Sie zur Prüfungsansicht zurück.</p></div></div>`);
+      }
+    } else {
+      existing?.remove();
+    }
+  }
+
+  function patchExamView(animate = true) {
+    const exam = state.exam;
+    if (!exam) return;
+    const question = exam.questions[exam.index];
+    const card = root.querySelector('[data-question-card]');
+    if (!card) { renderExam(true); return; }
+
+    const applyContent = () => {
+      card.innerHTML = examQuestionBodyHTML(question, exam);
+      bindExamHandlers();
+      updateExamTimers();
+      updateQuestionTimerVisibility();
+      root.parentElement?.scrollTo({ top: 0, behavior: animate ? 'smooth' : 'auto' });
+    };
+
+    if (!animate) {
+      applyContent();
+      return;
+    }
+
+    card.classList.add('is-changing');
+    window.setTimeout(() => {
+      applyContent();
+      card.classList.remove('is-changing');
+      card.classList.add('is-entering');
+      window.setTimeout(() => card.classList.remove('is-entering'), 280);
+    }, 110);
+  }
+
+  function renderExam(forceFull = false) {
+    const exam = state.exam;
+    if (!exam) { state.view = 'home'; render(); return; }
+
+    const existingShell = root.querySelector('.exam-shell');
+    if (existingShell && !forceFull) {
+      patchExamView(false);
+      updateExamBlockScreen();
+      return;
+    }
+
+    const question = exam.questions[exam.index];
+    const progress = ((exam.index + 1) / exam.questions.length) * 100;
 
     root.innerHTML = `<div class="exam-shell">
       <header class="exam-header"><div class="exam-header-inner">
@@ -391,21 +517,11 @@
       </div></header>
       <div class="progress-label" data-progress-label>Frage ${exam.index + 1} von ${exam.questions.length}</div>
       <div class="progress-wrap"><div class="progress" data-progress style="width:${progress}%"></div></div>
-      <main class="exam-main"><section class="card question-card">
-        <div class="section-tag">${h(categoryLabel(question.category))}</div>
-        <h2 class="question-title">${h(question.title)}</h2>
-        ${source}${stimulus}
-        <div class="question-text">${nl2br(question.question)}</div>
-        <div class="options" role="radiogroup">${options}</div>
-        <div class="exam-actions"><span class="muted small">Antworten können nach dem Fortfahren nicht geändert werden.</span><button class="btn btn-primary" id="next-question" ${exam.selected === null ? 'disabled' : ''}>${exam.index === exam.questions.length - 1 ? 'Prüfung abschließen' : 'Weiter →'}</button></div>
-      </section></main>
+      <main class="exam-main"><section class="card question-card" data-question-card>${examQuestionBodyHTML(question, exam)}</section></main>
       ${state.blocked ? `<div class="block-screen"><div class="block-screen-inner">${icons.shield}<h2>Prüfungsansicht gesperrt</h2><p>Der Bildschirminhalt wurde zum Schutz der Prüfung ausgeblendet.<br>Kehren Sie zur Prüfungsansicht zurück.</p></div></div>` : ''}
     </div>`;
 
-    root.querySelectorAll('[data-option]').forEach((button) => {
-      button.onclick = () => { exam.selected = button.dataset.option; render(); };
-    });
-    document.getElementById('next-question').onclick = () => advanceQuestion(false);
+    bindExamHandlers();
   }
 
   function advanceQuestion(timeout) {
@@ -418,7 +534,7 @@
     exam.index += 1;
     exam.selected = null;
     resetQuestionTime();
-    render();
+    patchExamView(true);
   }
 
   async function finishExam() {
@@ -755,6 +871,8 @@
   }
 
   closeBtn?.addEventListener('click', closeNui);
+  themeBtn?.addEventListener('click', toggleTheme);
+  initTheme();
 
   window.addEventListener('message', async (event) => {
     const message = event.data || {};
@@ -787,15 +905,19 @@
     if (state.view !== 'exam') return;
     state.blocked = document.hidden;
     if (document.hidden) registerIncident('WINDOW_SWITCH', 'Die Prüfungsansicht wurde verlassen.');
-    render();
+    updateExamBlockScreen();
   });
   window.addEventListener('blur', () => {
     if (state.view !== 'exam') return;
     state.blocked = true;
     registerIncident('WINDOW_SWITCH', 'Das Prüfungsfenster hat den Fokus verloren.');
-    render();
+    updateExamBlockScreen();
   });
-  window.addEventListener('focus', () => { if (state.view === 'exam') { state.blocked = false; render(); } });
+  window.addEventListener('focus', () => {
+    if (state.view !== 'exam') return;
+    state.blocked = false;
+    updateExamBlockScreen();
+  });
 
   render();
 })();
