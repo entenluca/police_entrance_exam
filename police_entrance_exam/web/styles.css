@@ -1180,6 +1180,7 @@ a { color: var(--navy-600); }
 .logo-box img {
   width: 44px;
   height: 44px;
+  object-fit: contain;
   filter: brightness(1.1);
 }
 
