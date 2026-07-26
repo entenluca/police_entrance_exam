@@ -47,6 +47,7 @@
     search: '',
     error: '',
     info: '',
+    loginPending: false,
     blocked: false,
     deleteConfirmRecordId: null,
     clearRecordsConfirm: false,
@@ -105,6 +106,7 @@
   let adminPoll = null;
   let lastRenderedView = null;
   let viewExitTimer = null;
+  let mountGeneration = 0;
 
   const EXAM_EXIT_MS = 200;
   const EXAM_ENTER_MS = 420;
@@ -310,9 +312,9 @@
     certificateOverlay.setAttribute('aria-hidden', 'false');
     document.getElementById('certificate-close')?.addEventListener('click', hideCertificateModal);
     document.getElementById('certificate-print')?.addEventListener('click', () => window.print());
-    certificateOverlay.onclick = (event) => {
+    certificateOverlay?.addEventListener('click', (event) => {
       if (event.target === certificateOverlay) hideCertificateModal();
-    };
+    }, { once: true });
   }
 
   function finishViewEnter(node) {
@@ -332,30 +334,44 @@
   }
 
   function mountView(node, onMounted) {
+    const generation = ++mountGeneration;
     const current = root.firstElementChild;
     const shouldCrossfade = Boolean(state.animateNextView && current);
 
     const complete = () => {
+      if (generation !== mountGeneration) return;
       if (typeof onMounted === 'function') onMounted();
     };
 
-    if (!shouldCrossfade) {
+    const applyMount = () => {
+      if (generation !== mountGeneration) return;
       mount(root, node);
       if (state.animateNextView) startViewEnter(root.firstElementChild);
       complete();
+    };
+
+    if (!shouldCrossfade) {
+      applyMount();
       return;
     }
 
     current.classList.add('view-exit');
     window.clearTimeout(viewExitTimer);
 
+    let swapped = false;
     const swap = () => {
-      mount(root, node);
-      startViewEnter(root.firstElementChild);
-      complete();
+      if (swapped || generation !== mountGeneration) return;
+      swapped = true;
+      window.clearTimeout(viewExitTimer);
+      applyMount();
     };
 
-    current.addEventListener('transitionend', swap, { once: true });
+    const onTransitionEnd = (event) => {
+      if (event.target !== current) return;
+      swap();
+    };
+
+    current.addEventListener('transitionend', onTransitionEnd);
     viewExitTimer = window.setTimeout(swap, VIEW_EXIT_MS);
   }
 
@@ -472,10 +488,20 @@
   }
 
   function renderHome() {
-    const openLoginBtn = el('button', { className: 'btn btn-secondary', id: 'open-login', type: 'button' }, icon('lock'), ` ${state.branding.staffLabel}`);
+    const openLoginBtn = el('button', {
+      className: 'btn btn-secondary',
+      id: 'open-login',
+      type: 'button',
+      onclick: () => { state.view = 'login'; state.error = ''; render(); },
+    }, icon('lock'), ` ${state.branding.staffLabel}`);
     const nameInput = el('input', { className: 'input', id: 'candidate-name', autocomplete: 'off', placeholder: 'Max Mustermann', required: true });
     const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true });
     const codeInput = el('input', { className: 'input code-input', id: 'candidate-code', maxlength: '9', placeholder: 'AB3K-7HNP', required: true });
+    codeInput.addEventListener('input', () => {
+      let value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      if (value.length > 4) value = `${value.slice(0, 4)}-${value.slice(4)}`;
+      codeInput.value = value;
+    });
 
     mountView(
       el('div', { className: 'shell' },
@@ -498,7 +524,7 @@
               el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
               el('h2', { text: 'Prüfung starten' }),
               el('p', { className: 'muted', text: `Name, Geburtsdatum und den einmaligen Zugangscode des ${state.branding.staffLabel} eingeben.` }),
-              el('form', { id: 'candidate-form' },
+              el('form', { id: 'candidate-form', onsubmit: handleCandidateSubmit },
                 field('Vollständiger Name', nameInput),
                 field('Geburtsdatum', birthInput),
                 field('Zugangscode', codeInput),
@@ -510,18 +536,6 @@
           ),
         ),
       ),
-      () => {
-        document.getElementById('open-login')?.addEventListener('click', () => { state.view = 'login'; state.error = ''; render(); });
-        const codeField = document.getElementById('candidate-code');
-        if (codeField) {
-          codeField.addEventListener('input', () => {
-            let value = codeField.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
-            if (value.length > 4) value = `${value.slice(0, 4)}-${value.slice(4)}`;
-            codeField.value = value;
-          });
-        }
-        document.getElementById('candidate-form')?.addEventListener('submit', handleCandidateSubmit);
-      },
     );
   }
 
@@ -568,30 +582,37 @@
             el('div', { className: 'form-header-icon' }, icon('lock')),
             el('h2', { text: `${state.branding.staffLabel} Login` }),
             el('p', { className: 'muted', text: 'Die Anmeldung wird ausschließlich serverseitig geprüft.' }),
-            el('form', { id: 'login-form' },
+            el('form', { id: 'login-form', onsubmit: handleLogin },
               field('Benutzername', el('input', { className: 'input', id: 'staff-user', autocomplete: 'username', placeholder: 'Benutzername eingeben', required: true })),
               field('Passwort', el('input', { className: 'input', id: 'staff-pass', type: 'password', autocomplete: 'current-password', placeholder: '••••••••', required: true })),
               buildNotices(),
               el('div', { className: 'login-actions' },
-                el('button', { className: 'btn btn-secondary', id: 'login-back', type: 'button', text: '← Zurück' }),
+                el('button', {
+                  className: 'btn btn-secondary',
+                  id: 'login-back',
+                  type: 'button',
+                  text: '← Zurück',
+                  onclick: () => { state.view = 'home'; state.error = ''; render(); },
+                }),
                 el('button', { className: 'btn btn-primary', type: 'submit' }, icon('lock'), ' Anmelden'),
               ),
             ),
           ),
         ),
       ),
-      () => {
-        document.getElementById('login-back')?.addEventListener('click', () => { state.view = 'home'; state.error = ''; render(); });
-        document.getElementById('login-form')?.addEventListener('submit', handleLogin);
-      },
     );
   }
 
   async function handleLogin(event) {
     event.preventDefault();
+    if (state.loginPending) return;
     state.error = '';
-    const username = document.getElementById('staff-user').value.trim();
-    const password = document.getElementById('staff-pass').value;
+    const form = event.currentTarget;
+    const username = form.querySelector('#staff-user')?.value.trim() || '';
+    const password = form.querySelector('#staff-pass')?.value || '';
+    const submitButton = form.querySelector('button[type="submit"]');
+    state.loginPending = true;
+    if (submitButton) submitButton.disabled = true;
     try {
       const result = await rpc('auth:login', { username, password });
       if (!result.success) throw new Error('Benutzername oder Passwort ist falsch.');
@@ -600,10 +621,17 @@
       state.view = 'admin';
       await refreshAdminData();
       startAdminPoll();
+      state.error = '';
       render();
     } catch (error) {
+      await rpc('auth:logout').catch(() => {});
+      state.staffName = '';
+      state.staffRank = '';
+      state.view = 'login';
       state.error = error.message || 'Anmeldung fehlgeschlagen.';
       render();
+    } finally {
+      state.loginPending = false;
     }
   }
 
@@ -731,13 +759,12 @@
     const exam = state.exam;
     if (!exam) return;
     root.querySelectorAll('[data-option]').forEach((button) => {
-      button.onclick = () => {
+      button.addEventListener('click', () => {
         exam.selected = button.dataset.option;
         updateExamSelection();
-      };
+      });
     });
-    const nextBtn = document.getElementById('next-question');
-    if (nextBtn) nextBtn.onclick = () => advanceQuestion(false);
+    document.getElementById('next-question')?.addEventListener('click', () => advanceQuestion(false));
   }
 
   function updateExamSelection() {
@@ -1233,7 +1260,12 @@
         el('span', { className: 'small muted', text: state.staffRank }),
       ),
     );
-    const logoutBtn = el('button', { className: 'btn btn-secondary', id: 'logout', type: 'button' }, icon('logout'), ' Abmelden');
+    const logoutBtn = el('button', {
+      className: 'btn btn-secondary',
+      id: 'logout',
+      type: 'button',
+      onclick: logout,
+    }, icon('logout'), ' Abmelden');
 
     mountView(
       el('div', { className: 'shell' },
@@ -1262,7 +1294,6 @@
         ),
       ),
       () => {
-        document.getElementById('logout')?.addEventListener('click', logout);
         root.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => { state.adminTab = button.dataset.tab; state.error = ''; state.info = ''; render(); }));
         root.querySelectorAll('[data-record]').forEach((button) => button.addEventListener('click', () => { state.selectedRecordId = button.dataset.record; state.deleteConfirmRecordId = null; state.clearRecordsConfirm = false; render(); }));
         root.querySelectorAll('[data-delete-code]').forEach((button) => button.addEventListener('click', () => deleteCode(button.dataset.deleteCode)));
@@ -1437,8 +1468,9 @@
       return;
     }
     if (message.type === 'police_exam:visibility') {
+      const wasVisible = state.visible;
       state.visible = message.visible === true;
-      if (state.visible) resetSession();
+      if (state.visible && !wasVisible) resetSession();
       render();
     }
     if (message.type === 'police_exam:dataChanged' && state.view === 'admin' && state.staffName) {
