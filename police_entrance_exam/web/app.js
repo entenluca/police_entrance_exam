@@ -81,9 +81,16 @@
   }
 
   async function closeNui() {
-    if (state.view === 'exam' || state.view === 'saving') return;
+    if (state.view === 'saving') return;
+
+    if (state.view === 'exam' && state.exam) {
+      registerIncident('WINDOW_CLOSE', 'Die Prüfungsansicht wurde manuell geschlossen.');
+      stopExamTimer();
+    }
+
     if (state.staffName) rpc('auth:logout').catch(() => {});
     stopAdminPoll();
+    resetSession();
     state.visible = false;
     setTabletVisible(false);
     if (isNui) {
