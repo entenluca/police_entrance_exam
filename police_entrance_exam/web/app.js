@@ -331,13 +331,18 @@
     finishViewEnter(node);
   }
 
-  function mountView(node) {
+  function mountView(node, onMounted) {
     const current = root.firstElementChild;
     const shouldCrossfade = Boolean(state.animateNextView && current);
+
+    const complete = () => {
+      if (typeof onMounted === 'function') onMounted();
+    };
 
     if (!shouldCrossfade) {
       mount(root, node);
       if (state.animateNextView) startViewEnter(root.firstElementChild);
+      complete();
       return;
     }
 
@@ -347,6 +352,7 @@
     const swap = () => {
       mount(root, node);
       startViewEnter(root.firstElementChild);
+      complete();
     };
 
     current.addEventListener('transitionend', swap, { once: true });
@@ -504,16 +510,19 @@
           ),
         ),
       ),
+      () => {
+        document.getElementById('open-login')?.addEventListener('click', () => { state.view = 'login'; state.error = ''; render(); });
+        const codeField = document.getElementById('candidate-code');
+        if (codeField) {
+          codeField.addEventListener('input', () => {
+            let value = codeField.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+            if (value.length > 4) value = `${value.slice(0, 4)}-${value.slice(4)}`;
+            codeField.value = value;
+          });
+        }
+        document.getElementById('candidate-form')?.addEventListener('submit', handleCandidateSubmit);
+      },
     );
-
-    document.getElementById('open-login').onclick = () => { state.view = 'login'; state.error = ''; render(); };
-    const codeField = document.getElementById('candidate-code');
-    codeField.addEventListener('input', () => {
-      let value = codeField.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
-      if (value.length > 4) value = `${value.slice(0, 4)}-${value.slice(4)}`;
-      codeField.value = value;
-    });
-    document.getElementById('candidate-form').onsubmit = handleCandidateSubmit;
   }
 
   async function handleCandidateSubmit(event) {
@@ -571,9 +580,11 @@
           ),
         ),
       ),
+      () => {
+        document.getElementById('login-back')?.addEventListener('click', () => { state.view = 'home'; state.error = ''; render(); });
+        document.getElementById('login-form')?.addEventListener('submit', handleLogin);
+      },
     );
-    document.getElementById('login-back').onclick = () => { state.view = 'home'; state.error = ''; render(); };
-    document.getElementById('login-form').onsubmit = handleLogin;
   }
 
   async function handleLogin(event) {
@@ -870,13 +881,14 @@
 
     if (state.blocked) examShell.append(buildBlockScreen());
 
-    mountView(examShell);
-    const firstCard = root.querySelector('[data-question-card]');
-    if (firstCard && state.animateNextView) {
-      firstCard.classList.add('is-entering');
-      window.setTimeout(() => firstCard.classList.remove('is-entering'), EXAM_ENTER_MS);
-    }
-    bindExamHandlers();
+    mountView(examShell, () => {
+      const firstCard = root.querySelector('[data-question-card]');
+      if (firstCard && state.animateNextView) {
+        firstCard.classList.add('is-entering');
+        window.setTimeout(() => firstCard.classList.remove('is-entering'), EXAM_ENTER_MS);
+      }
+      bindExamHandlers();
+    });
   }
 
   function advanceQuestion(timeout) {
@@ -961,8 +973,10 @@
           el('div', { className: 'status-card card' }, ...statusChildren),
         ),
       ),
+      () => {
+        document.getElementById('retry-save')?.addEventListener('click', submitPendingRecord);
+      },
     );
-    document.getElementById('retry-save')?.addEventListener('click', submitPendingRecord);
   }
 
   function renderResult() {
@@ -991,8 +1005,17 @@
           ),
         ),
       ),
+      () => {
+        document.getElementById('result-home')?.addEventListener('click', () => {
+          state.view = 'home';
+          state.candidate = null;
+          state.result = null;
+          state.error = '';
+          state.info = '';
+          render();
+        });
+      },
     );
-    document.getElementById('result-home').onclick = () => { state.view = 'home'; state.candidate = null; state.result = null; state.error = ''; state.info = ''; render(); };
   }
 
   async function refreshAdminData() {
@@ -1238,26 +1261,35 @@
           ),
         ),
       ),
+      () => {
+        document.getElementById('logout')?.addEventListener('click', logout);
+        root.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => { state.adminTab = button.dataset.tab; state.error = ''; state.info = ''; render(); }));
+        root.querySelectorAll('[data-record]').forEach((button) => button.addEventListener('click', () => { state.selectedRecordId = button.dataset.record; state.deleteConfirmRecordId = null; state.clearRecordsConfirm = false; render(); }));
+        root.querySelectorAll('[data-delete-code]').forEach((button) => button.addEventListener('click', () => deleteCode(button.dataset.deleteCode)));
+        document.getElementById('record-search')?.addEventListener('input', (event) => {
+          state.search = event.target.value;
+          render();
+          const input = document.getElementById('record-search');
+          if (input) {
+            input.focus();
+            input.setSelectionRange(input.value.length, input.value.length);
+          }
+        });
+        document.getElementById('create-code-form')?.addEventListener('submit', createCode);
+        document.getElementById('delete-record')?.addEventListener('click', requestDeleteSelectedRecord);
+        document.getElementById('confirm-delete-record')?.addEventListener('click', deleteSelectedRecord);
+        document.getElementById('cancel-delete-record')?.addEventListener('click', cancelDeleteSelectedRecord);
+        document.getElementById('clear-records')?.addEventListener('click', requestClearRecords);
+        document.getElementById('confirm-clear-records')?.addEventListener('click', clearRecords);
+        document.getElementById('cancel-clear-records')?.addEventListener('click', cancelClearRecords);
+        document.getElementById('issue-certificate')?.addEventListener('click', issueCertificate);
+        document.getElementById('view-certificate')?.addEventListener('click', () => {
+          const record = state.records.find((item) => item.recordId === state.selectedRecordId);
+          if (record) showCertificateModal(record);
+        });
+        document.getElementById('refresh-admin')?.addEventListener('click', async () => { await refreshAdminData(); render(); });
+      },
     );
-
-    document.getElementById('logout').onclick = logout;
-    root.querySelectorAll('[data-tab]').forEach((button) => button.onclick = () => { state.adminTab = button.dataset.tab; state.error = ''; state.info = ''; render(); });
-    root.querySelectorAll('[data-record]').forEach((button) => button.onclick = () => { state.selectedRecordId = button.dataset.record; state.deleteConfirmRecordId = null; state.clearRecordsConfirm = false; render(); });
-    root.querySelectorAll('[data-delete-code]').forEach((button) => button.onclick = () => deleteCode(button.dataset.deleteCode));
-    document.getElementById('record-search')?.addEventListener('input', (event) => { state.search = event.target.value; render(); const input = document.getElementById('record-search'); input.focus(); input.setSelectionRange(input.value.length, input.value.length); });
-    document.getElementById('create-code-form')?.addEventListener('submit', createCode);
-    document.getElementById('delete-record')?.addEventListener('click', requestDeleteSelectedRecord);
-    document.getElementById('confirm-delete-record')?.addEventListener('click', deleteSelectedRecord);
-    document.getElementById('cancel-delete-record')?.addEventListener('click', cancelDeleteSelectedRecord);
-    document.getElementById('clear-records')?.addEventListener('click', requestClearRecords);
-    document.getElementById('confirm-clear-records')?.addEventListener('click', clearRecords);
-    document.getElementById('cancel-clear-records')?.addEventListener('click', cancelClearRecords);
-    document.getElementById('issue-certificate')?.addEventListener('click', issueCertificate);
-    document.getElementById('view-certificate')?.addEventListener('click', () => {
-      const record = state.records.find((item) => item.recordId === state.selectedRecordId);
-      if (record) showCertificateModal(record);
-    });
-    document.getElementById('refresh-admin')?.addEventListener('click', async () => { await refreshAdminData(); render(); });
   }
 
   async function createCode(event) {
