@@ -2464,12 +2464,13 @@ h2 {
   border: 1px solid var(--line);
 }
 
-.security-log-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  align-items: baseline;
-  margin-bottom: 4px;
+.security-log-item--alert {
+  border-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
+.security-log-item--alert strong {
+  color: var(--danger);
 }
 
 /* ─── Zertifikat ────────────────────────────────────────────── */

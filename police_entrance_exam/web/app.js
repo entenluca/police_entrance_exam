@@ -58,7 +58,9 @@
 
   function incidentLabel(type) {
     const labels = {
-      PRINT_SCREEN: 'Screenshot-Versuch',
+      SCREEN_CAPTURE: 'Screenshot / Bildschirmaufnahme',
+      PHOTO_SUSPECTED: 'Externe Aufnahme (Handy/Foto)',
+      PRINT_SCREEN: 'Screenshot-Taste',
       COPY_ATTEMPT: 'Kopierversuch',
       CUT_ATTEMPT: 'Ausschneiden blockiert',
       PASTE_ATTEMPT: 'Einfügen blockiert',
@@ -68,6 +70,35 @@
       WINDOW_CLOSE: 'Prüfung geschlossen',
     };
     return labels[type] || type || 'Ereignis';
+  }
+
+  function isScreenshotAttempt(event) {
+    const key = String(event.key || '').toLowerCase();
+    const code = String(event.code || '');
+    if (code === 'PrintScreen' || event.key === 'PrintScreen') return true;
+    if (event.altKey && code === 'PrintScreen') return true;
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && (key === 's' || code === 'KeyS')) return true;
+    if ((event.ctrlKey || event.metaKey) && key === 'p') return true;
+    return false;
+  }
+
+  function screenshotIncidentMessage(event) {
+    const key = String(event.key || '').toLowerCase();
+    const code = String(event.code || '');
+    if (code === 'PrintScreen' || event.key === 'PrintScreen') {
+      return 'Screenshot-Taste (Print Screen) gedrückt – in der Prüfungsakte vermerkt.';
+    }
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && (key === 's' || code === 'KeyS')) {
+      return 'Bildschirmaufnahme (Snipping Tool / Screenshot-Tool) erkannt – in der Akte vermerkt.';
+    }
+    if ((event.ctrlKey || event.metaKey) && key === 'p') {
+      return 'Drucken oder Export während der Prüfung blockiert – in der Akte vermerkt.';
+    }
+    return 'Screenshot- oder Aufnahmeversuch während der Prüfung – in der Akte vermerkt.';
+  }
+
+  function registerScreenshotAttempt(event) {
+    registerIncident('SCREEN_CAPTURE', screenshotIncidentMessage(event));
   }
 
   let examTimer = null;
@@ -1029,7 +1060,9 @@
     return el('div', { className: 'security-log' },
       el('div', { className: 'eyebrow', text: 'Sicherheitsprotokoll' }),
       el('ul', { className: 'security-log-list' },
-        ...incidents.map((item) => el('li', { className: 'security-log-item' },
+        ...incidents.map((item) => el('li', {
+          className: `security-log-item${['SCREEN_CAPTURE', 'PHOTO_SUSPECTED', 'PRINT_SCREEN'].includes(item.type) ? ' security-log-item--alert' : ''}`,
+        },
           el('div', { className: 'security-log-head' },
             el('strong', { text: incidentLabel(item.type) }),
             el('span', { className: 'small muted', text: formatDate(item.timestamp, true) }),
@@ -1390,22 +1423,38 @@
     if (event.key === 'Escape' && state.view !== 'exam' && state.view !== 'saving') closeNui();
     if (state.view === 'saving') { event.preventDefault(); return; }
     if (state.view !== 'exam') return;
-    if (event.key === 'Escape') { event.preventDefault(); registerIncident('RESTRICTED_ACTION', 'Schließen der Prüfungsansicht wurde blockiert.'); }
+    if (event.key === 'Escape') { event.preventDefault(); registerIncident('RESTRICTED_ACTION', 'Schließen der Prüfungsansicht wurde blockiert.'); return; }
+    if (isScreenshotAttempt(event)) {
+      event.preventDefault();
+      registerScreenshotAttempt(event);
+      return;
+    }
     const key = event.key.toLowerCase();
-    if (event.key === 'PrintScreen') { event.preventDefault(); registerIncident('PRINT_SCREEN', 'Screenshot-Taste erkannt.'); }
-    if ((event.ctrlKey || event.metaKey) && ['c', 'x', 'v', 'u', 's', 'p'].includes(key)) { event.preventDefault(); registerIncident('RESTRICTED_ACTION', 'Nicht zulässige Tastenkombination erkannt.'); }
-    if (event.key === 'F12') { event.preventDefault(); registerIncident('RESTRICTED_ACTION', 'Entwicklertools wurden blockiert.'); }
+    if ((event.ctrlKey || event.metaKey) && ['c', 'x', 'v', 'u', 's'].includes(key)) {
+      event.preventDefault();
+      registerIncident('RESTRICTED_ACTION', 'Nicht zulässige Tastenkombination erkannt – in der Akte vermerkt.');
+      return;
+    }
+    if (event.key === 'F12') { event.preventDefault(); registerIncident('RESTRICTED_ACTION', 'Entwicklertools wurden blockiert – in der Akte vermerkt.'); }
+  });
+
+  window.addEventListener('keyup', (event) => {
+    if (state.view !== 'exam') return;
+    if (event.code === 'PrintScreen' || event.key === 'PrintScreen') {
+      event.preventDefault();
+      registerScreenshotAttempt(event);
+    }
   });
 
   document.addEventListener('contextmenu', (event) => {
     if (state.view !== 'exam') return;
     event.preventDefault();
-    registerIncident('CONTEXT_MENU', 'Rechtsklick während der Prüfung blockiert.');
+    registerIncident('CONTEXT_MENU', 'Rechtsklick während der Prüfung blockiert – in der Akte vermerkt.');
   });
   document.addEventListener('copy', (event) => {
     if (state.view !== 'exam') return;
     event.preventDefault();
-    registerIncident('COPY_ATTEMPT', 'Kopieren während der Prüfung blockiert.');
+    registerIncident('COPY_ATTEMPT', 'Kopieren während der Prüfung blockiert – in der Akte vermerkt.');
   });
   document.addEventListener('cut', (event) => {
     if (state.view !== 'exam') return;
@@ -1420,13 +1469,15 @@
   document.addEventListener('visibilitychange', () => {
     if (state.view !== 'exam') return;
     state.blocked = document.hidden;
-    if (document.hidden) registerIncident('WINDOW_SWITCH', 'Die Prüfungsansicht wurde verlassen.');
+    if (document.hidden) {
+      registerIncident('PHOTO_SUSPECTED', 'Prüfungsansicht verlassen – mögliche externe Aufnahme (Screenshot/Handy-Foto) in der Akte vermerkt.');
+    }
     updateExamBlockScreen();
   });
   window.addEventListener('blur', () => {
     if (state.view !== 'exam') return;
     state.blocked = true;
-    registerIncident('WINDOW_SWITCH', 'Das Prüfungsfenster hat den Fokus verloren.');
+    registerIncident('PHOTO_SUSPECTED', 'Fokus von der Prüfung abgewendet – mögliches Abfotografieren oder Screenshot in der Akte vermerkt.');
     updateExamBlockScreen();
   });
   window.addEventListener('focus', () => {
