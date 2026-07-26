@@ -626,8 +626,9 @@ body {
 }
 
 .tablet-screen-body .result-card {
-  padding: 22px;
-  margin: auto 0;
+  padding: 28px 32px;
+  width: min(680px, 100%);
+  margin: 0 auto;
 }
 
 .tablet-screen-body .exam-shell {
@@ -1565,12 +1566,52 @@ h2 {
 
 /* ─── Ergebnis ──────────────────────────────────────────────── */
 
+.result-page {
+  width: 100%;
+}
+
 .result-card {
-  width: min(760px, 100%);
+  width: min(680px, 100%);
   margin: 0 auto;
-  padding: var(--space-10);
+  padding: var(--space-8) var(--space-10);
   text-align: center;
   animation: fadeInScale 0.5s var(--ease-out) both;
+}
+
+.result-card .brand {
+  justify-content: center;
+  text-align: left;
+}
+
+.result-card .login-divider {
+  margin: var(--space-5) 0 var(--space-4);
+}
+
+.result-icon-wrap {
+  display: flex;
+  justify-content: center;
+  margin: var(--space-4) 0 var(--space-5);
+}
+
+.result-icon-wrap svg {
+  width: 72px;
+  height: 72px;
+  color: var(--success);
+}
+
+.result-details {
+  margin-top: var(--space-5);
+  text-align: left;
+}
+
+.result-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-6);
+}
+
+.result-actions .btn {
+  min-width: 200px;
 }
 
 .result-icon {
