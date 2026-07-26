@@ -75,8 +75,13 @@
 
   /* Übergänge */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
   --duration-fast: 150ms;
-  --duration-normal: 250ms;
+  --duration-normal: 280ms;
+  --duration-medium: 420ms;
+  --duration-slow: 560ms;
 }
 
 [data-theme="dark"] {
@@ -145,13 +150,16 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  animation: tabletEnter 0.55s var(--ease-out) both;
+}
+
+.tablet-scene.is-entering {
+  animation: tabletEnter var(--duration-slow) var(--ease-spring) both;
 }
 
 @keyframes tabletEnter {
   from {
     opacity: 0;
-    transform: translateY(24px) scale(0.94);
+    transform: translateY(28px) scale(0.96);
   }
   to {
     opacity: 1;
@@ -589,25 +597,64 @@ body {
   background: var(--bg);
 }
 
+.question-card {
+  padding: var(--space-8);
+  will-change: opacity, transform;
+  transition:
+    opacity var(--duration-normal) var(--ease-smooth),
+    transform var(--duration-normal) var(--ease-smooth);
+}
+
 .question-card.is-changing {
   opacity: 0;
-  transform: translateX(10px);
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transform: translateY(12px) scale(0.985);
+  pointer-events: none;
 }
 
 .question-card.is-entering {
-  animation: questionEnter 0.28s var(--ease-out) both;
+  animation: questionEnter var(--duration-medium) var(--ease-spring) both;
 }
 
 @keyframes questionEnter {
   from {
     opacity: 0;
-    transform: translateX(14px);
+    transform: translateY(18px) scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0) scale(1);
   }
+}
+
+.question-card.is-entering .option {
+  animation: optionEnter var(--duration-normal) var(--ease-out) both;
+}
+
+.question-card.is-entering .option:nth-child(1) { animation-delay: 0.04s; }
+.question-card.is-entering .option:nth-child(2) { animation-delay: 0.08s; }
+.question-card.is-entering .option:nth-child(3) { animation-delay: 0.12s; }
+.question-card.is-entering .option:nth-child(4) { animation-delay: 0.16s; }
+.question-card.is-entering .option:nth-child(5) { animation-delay: 0.2s; }
+
+@keyframes optionEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.option.is-selecting {
+  animation: optionSelect 0.32s var(--ease-spring);
+}
+
+@keyframes optionSelect {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.015); }
+  100% { transform: scale(1); }
 }
 
 .option {
@@ -928,13 +975,18 @@ a { color: var(--navy-600); }
 /* ─── Animationen ─────────────────────────────────────────── */
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeInScale {
-  from { opacity: 0; transform: scale(0.97); }
-  to   { opacity: 1; transform: scale(1); }
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes spin {
@@ -943,7 +995,7 @@ a { color: var(--navy-600); }
 
 @keyframes pulse {
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.6; }
+  50%       { opacity: 0.65; }
 }
 
 @keyframes shimmer {
@@ -956,13 +1008,103 @@ a { color: var(--navy-600); }
   50%       { box-shadow: 0 0 16px rgba(14, 165, 233, 0.7); }
 }
 
-.animate-in {
-  animation: fadeIn 0.4s var(--ease-out) both;
+@keyframes noticeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.animate-in-delay-1 { animation-delay: 0.05s; }
-.animate-in-delay-2 { animation-delay: 0.1s; }
-.animate-in-delay-3 { animation-delay: 0.15s; }
+/* View-Übergänge zwischen Ansichten */
+.view-exit {
+  opacity: 0;
+  transform: translateY(-8px) scale(0.992);
+  transition:
+    opacity 200ms var(--ease-smooth),
+    transform 220ms var(--ease-smooth);
+  pointer-events: none;
+}
+
+.view-enter {
+  opacity: 0;
+  transform: translateY(14px) scale(0.988);
+}
+
+.view-enter-active {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition:
+    opacity var(--duration-medium) var(--ease-out),
+    transform var(--duration-medium) var(--ease-spring);
+}
+
+.view-enter-active .login-brand {
+  animation: slideInLeft var(--duration-slow) var(--ease-out) 0.05s both;
+}
+
+.view-enter-active .login-panel {
+  animation: slideInRight var(--duration-slow) var(--ease-out) 0.1s both;
+}
+
+.view-enter-active .hero {
+  animation: fadeInUp var(--duration-slow) var(--ease-out) 0.06s both;
+}
+
+.view-enter-active .form-card {
+  animation: fadeInUp var(--duration-slow) var(--ease-out) 0.12s both;
+}
+
+.view-enter-active .admin-layout {
+  animation: fadeInUp var(--duration-slow) var(--ease-out) 0.12s both;
+}
+
+.view-enter-active .topbar {
+  animation: fadeIn var(--duration-normal) var(--ease-out) both;
+}
+
+.view-enter-active .status-card,
+.view-enter-active .result-card {
+  animation: fadeInScale var(--duration-slow) var(--ease-spring) 0.08s both;
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.animate-in {
+  animation: fadeIn var(--duration-medium) var(--ease-out) both;
+}
+
+.animate-in-delay-1 { animation-delay: 0.07s; }
+.animate-in-delay-2 { animation-delay: 0.14s; }
+.animate-in-delay-3 { animation-delay: 0.21s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .view-exit,
+  .view-enter,
+  .view-enter-active {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
 
 /* ─── Layout ────────────────────────────────────────────────── */
 
@@ -1064,17 +1206,23 @@ h2 {
   font-weight: 700;
   font-size: 0.875rem;
   letter-spacing: 0.01em;
-  transition: all var(--duration-fast) var(--ease-out);
+  transition:
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
   white-space: nowrap;
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(-2px);
   box-shadow: var(--shadow-md);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.98);
+  transition-duration: 80ms;
 }
 
 .btn-primary {
@@ -1309,7 +1457,10 @@ h2 {
   background: var(--input-bg);
   outline: none;
   color: var(--text);
-  transition: border-color var(--duration-fast), box-shadow var(--duration-fast);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-normal) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
 }
 
 .input::placeholder { color: #94a3b8; }
@@ -1342,6 +1493,7 @@ h2 {
   display: flex;
   gap: var(--space-3);
   align-items: flex-start;
+  animation: noticeIn var(--duration-normal) var(--ease-out) both;
 }
 
 .notice-icon {
@@ -1492,7 +1644,6 @@ h2 {
   width: min(520px, 100%);
   padding: 32px;
   text-align: center;
-  animation: fadeInScale 0.4s var(--ease-out) both;
 }
 
 .login-layout {
@@ -1589,8 +1740,9 @@ h2 {
 .progress {
   height: 100%;
   background: linear-gradient(90deg, var(--sky-500), var(--navy-700));
-  transition: width 0.4s var(--ease-out);
+  transition: width var(--duration-medium) var(--ease-emphasized);
   border-radius: 0 2px 2px 0;
+  will-change: width;
 }
 
 .progress-label {
@@ -1608,11 +1760,6 @@ h2 {
   width: min(900px, 100%);
   margin: 0 auto;
   padding: var(--space-8) var(--space-5) var(--space-12);
-}
-
-.question-card {
-  padding: var(--space-8);
-  animation: fadeIn 0.35s var(--ease-out) both;
 }
 
 .section-tag {
@@ -1740,11 +1887,23 @@ h2 {
   color: #fff;
   text-align: center;
   padding: var(--space-8);
-  animation: fadeIn 0.3s ease both;
+  animation: blockScreenIn var(--duration-normal) var(--ease-out) both;
+}
+
+@keyframes blockScreenIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(4px);
+  }
 }
 
 .block-screen-inner {
   max-width: 480px;
+  animation: fadeInScale var(--duration-medium) var(--ease-spring) 0.08s both;
 }
 
 .block-icon {
@@ -1776,7 +1935,6 @@ h2 {
   margin: 0 auto;
   padding: var(--space-8) var(--space-10);
   text-align: center;
-  animation: fadeInScale 0.5s var(--ease-out) both;
 }
 
 .result-card .brand {
@@ -1792,6 +1950,21 @@ h2 {
   display: flex;
   justify-content: center;
   margin: var(--space-4) 0 var(--space-5);
+}
+
+.view-enter-active .result-icon-wrap svg {
+  animation: resultIconPop var(--duration-slow) var(--ease-spring) 0.2s both;
+}
+
+@keyframes resultIconPop {
+  from {
+    opacity: 0;
+    transform: scale(0.6) rotate(-12deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
 }
 
 .result-icon-wrap svg {
@@ -1953,12 +2126,17 @@ h2 {
   border-radius: var(--radius-md);
   padding: var(--space-3) var(--space-4);
   background: var(--card);
-  transition: all var(--duration-fast);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-spring);
 }
 
 .record-item:hover {
   border-color: var(--sky-400);
   background: #f8fafc;
+  transform: translateX(2px);
 }
 
 .record-item.active {
@@ -2096,8 +2274,16 @@ h2 {
   border: 3px solid var(--line);
   border-top-color: var(--navy-700);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.9s cubic-bezier(0.55, 0.15, 0.35, 0.85) infinite;
 }
+
+.view-enter-active .saving-steps .saving-step {
+  animation: fadeInUp var(--duration-normal) var(--ease-out) both;
+}
+
+.view-enter-active .saving-steps .saving-step:nth-child(1) { animation-delay: 0.15s; }
+.view-enter-active .saving-steps .saving-step:nth-child(2) { animation-delay: 0.25s; }
+.view-enter-active .saving-steps .saving-step:nth-child(3) { animation-delay: 0.35s; }
 
 .saving-steps {
   display: flex;

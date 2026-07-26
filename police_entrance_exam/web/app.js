@@ -38,6 +38,13 @@
 
   let examTimer = null;
   let adminPoll = null;
+  let lastRenderedView = null;
+  let viewExitTimer = null;
+
+  const EXAM_EXIT_MS = 200;
+  const EXAM_ENTER_MS = 420;
+  const VIEW_EXIT_MS = 220;
+  const VIEW_ENTER_MS = 420;
 
   const h = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
@@ -96,6 +103,50 @@
     tabletStage.classList.toggle('hidden', !visible);
     tabletStage.setAttribute('aria-hidden', visible ? 'false' : 'true');
     if (closeBtn) closeBtn.hidden = !visible || !isNui;
+    const scene = tabletStage.querySelector('.tablet-scene');
+    if (scene && visible) {
+      scene.classList.remove('is-entering');
+      void scene.offsetWidth;
+      scene.classList.add('is-entering');
+    }
+  }
+
+  function finishViewEnter(node) {
+    if (!node) return;
+    const cleanup = () => node.classList.remove('view-enter', 'view-enter-active');
+    node.addEventListener('transitionend', cleanup, { once: true });
+    window.setTimeout(cleanup, VIEW_ENTER_MS + 80);
+  }
+
+  function startViewEnter(node) {
+    if (!node) return;
+    node.classList.add('view-enter');
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => node.classList.add('view-enter-active'));
+    });
+    finishViewEnter(node);
+  }
+
+  function mountView(node) {
+    const current = root.firstElementChild;
+    const shouldCrossfade = Boolean(state.animateNextView && current);
+
+    if (!shouldCrossfade) {
+      mount(root, node);
+      if (state.animateNextView) startViewEnter(root.firstElementChild);
+      return;
+    }
+
+    current.classList.add('view-exit');
+    window.clearTimeout(viewExitTimer);
+
+    const swap = () => {
+      mount(root, node);
+      startViewEnter(root.firstElementChild);
+    };
+
+    current.addEventListener('transitionend', swap, { once: true });
+    viewExitTimer = window.setTimeout(swap, VIEW_EXIT_MS);
   }
 
   function applyTheme(theme) {
@@ -123,6 +174,7 @@
   function resetSession() {
     stopExamTimer();
     stopAdminPoll();
+    lastRenderedView = null;
     state.view = 'home';
     state.staffName = '';
     state.staffRank = '';
@@ -213,12 +265,12 @@
     const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true });
     const codeInput = el('input', { className: 'input code-input', id: 'candidate-code', maxlength: '9', placeholder: 'AB3K-7HNP', required: true });
 
-    mount(root,
+    mountView(
       el('div', { className: 'shell' },
-        el('div', { className: 'wrap animate-in' },
+        el('div', { className: 'wrap' },
           buildTopbar(openLoginBtn),
           el('section', { className: 'grid-home' },
-            el('div', { className: 'card hero animate-in-delay-1' },
+            el('div', { className: 'card hero' },
               el('div', { className: 'hero-pattern' }),
               el('span', { className: 'pill' }, el('span', { className: 'pill-dot' }), ' Digitaler Eignungstest'),
               el('h2', { text: 'Behördliches Auswahlverfahren für Bewerberinnen und Bewerber' }),
@@ -229,7 +281,7 @@
                 el('div', { className: 'stat' }, el('span', { text: 'Fragen' }), el('strong', { text: '20 Aufgaben' })),
               ),
             ),
-            el('div', { className: 'card form-card animate-in-delay-2' },
+            el('div', { className: 'card form-card' },
               el('div', { className: 'form-header-icon' }, icon('user')),
               el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
               el('h2', { text: 'Prüfung starten' }),
@@ -288,7 +340,7 @@
   }
 
   function renderLogin() {
-    mount(root,
+    mountView(
       el('div', { className: 'shell login-page' },
         el('div', { className: 'login-split' },
           el('aside', { className: 'login-brand' },
@@ -479,6 +531,12 @@
       const selected = button.dataset.option === exam.selected;
       button.classList.toggle('selected', selected);
       button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      if (selected) {
+        button.classList.remove('is-selecting');
+        void button.offsetWidth;
+        button.classList.add('is-selecting');
+        window.setTimeout(() => button.classList.remove('is-selecting'), 320);
+      }
     });
     const nextBtn = document.getElementById('next-question');
     if (nextBtn) nextBtn.disabled = exam.selected === null;
@@ -522,6 +580,16 @@
     }
   }
 
+  function updateExamProgress() {
+    const exam = state.exam;
+    if (!exam) return;
+    const progress = ((exam.index + 1) / exam.questions.length) * 100;
+    const bar = root.querySelector('[data-progress]');
+    const label = root.querySelector('[data-progress-label]');
+    if (bar) bar.style.width = `${progress}%`;
+    if (label) label.textContent = `Frage ${exam.index + 1} von ${exam.questions.length}`;
+  }
+
   function patchExamView(animate = true) {
     const exam = state.exam;
     if (!exam) return;
@@ -530,6 +598,7 @@
     if (!card) { renderExam(true); return; }
 
     const applyContent = () => {
+      updateExamProgress();
       mount(card, buildExamQuestionBody(question, exam));
       bindExamHandlers();
       updateExamTimers();
@@ -542,13 +611,15 @@
       return;
     }
 
+    card.classList.remove('is-entering');
     card.classList.add('is-changing');
     window.setTimeout(() => {
       applyContent();
       card.classList.remove('is-changing');
+      void card.offsetWidth;
       card.classList.add('is-entering');
-      window.setTimeout(() => card.classList.remove('is-entering'), 280);
-    }, 110);
+      window.setTimeout(() => card.classList.remove('is-entering'), EXAM_ENTER_MS);
+    }, EXAM_EXIT_MS);
   }
 
   function renderExam(forceFull = false) {
@@ -594,7 +665,12 @@
 
     if (state.blocked) examShell.append(buildBlockScreen());
 
-    mount(root, examShell);
+    mountView(examShell);
+    const firstCard = root.querySelector('[data-question-card]');
+    if (firstCard && state.animateNextView) {
+      firstCard.classList.add('is-entering');
+      window.setTimeout(() => firstCard.classList.remove('is-entering'), EXAM_ENTER_MS);
+    }
     bindExamHandlers();
   }
 
@@ -674,7 +750,7 @@
       );
     }
 
-    mount(root,
+    mountView(
       el('div', { className: 'shell login-page' },
         el('div', { className: 'status-page' },
           el('div', { className: 'status-card card' }, ...statusChildren),
@@ -688,7 +764,7 @@
     const receipt = state.result;
     if (!receipt) { state.view = 'home'; render(); return; }
 
-    mount(root,
+    mountView(
       el('div', { className: 'shell login-page' },
         el('div', { className: 'status-page result-page' },
           el('section', { className: 'card result-card' },
@@ -897,9 +973,9 @@
     );
     const logoutBtn = el('button', { className: 'btn btn-secondary', id: 'logout', type: 'button' }, icon('logout'), ' Abmelden');
 
-    mount(root,
+    mountView(
       el('div', { className: 'shell' },
-        el('div', { className: 'wrap animate-in' },
+        el('div', { className: 'wrap' },
           buildTopbar(frag(staffBadge, logoutBtn)),
           buildNotices(),
           el('div', { className: 'admin-layout' },
@@ -1060,6 +1136,8 @@
   function render() {
     if (!state.visible) { setTabletVisible(false); return; }
     setTabletVisible(true);
+    state.animateNextView = lastRenderedView !== state.view;
+    lastRenderedView = state.view;
     if (state.view === 'home') renderHome();
     else if (state.view === 'login') renderLogin();
     else if (state.view === 'exam') renderExam();
