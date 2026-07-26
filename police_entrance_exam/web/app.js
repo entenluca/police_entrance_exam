@@ -32,6 +32,18 @@
   let examTimer = null;
   let adminPoll = null;
 
+  const icons = {
+    clock: '<svg class="timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+    shield: '<svg class="block-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l8 4v6c0 5.25-3.5 10-8 12-4.5-2-8-6.75-8-12V6l8-4z"/><path d="M9 12l2 2 4-4" stroke-width="2"/></svg>',
+    check: '<svg class="result-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>',
+    info: '<svg class="notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
+    user: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    lock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>',
+    key: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
+    close: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+    logout: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
+  };
+
   const h = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -148,26 +160,32 @@
   }
 
   function noticeHtml() {
-    const error = state.error ? `<div class="notice notice-error">${h(state.error)}</div>` : '';
-    const info = state.info ? `<div class="notice notice-success">${h(state.info)}</div>` : '';
+    const error = state.error ? `<div class="notice notice-error">${icons.info}<span>${h(state.error)}</span></div>` : '';
+    const info = state.info ? `<div class="notice notice-success">${icons.check}<span>${h(state.info)}</span></div>` : '';
     return `${error}${info}`;
   }
 
+  function staffInitials(name) {
+    return String(name || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+  }
+
   function renderHome() {
-    root.innerHTML = `<div class="shell"><div class="wrap">
-      ${topbar('<button class="btn btn-secondary" id="open-login">Personalwesen Login</button>')}
+    root.innerHTML = `<div class="shell"><div class="wrap animate-in">
+      ${topbar('<button class="btn btn-secondary" id="open-login">' + icons.lock + ' Personalwesen</button>')}
       <section class="grid-home">
-        <div class="card hero">
-          <span class="pill">Digitaler Eignungstest</span>
-          <h2>Behördliches Auswahlverfahren für Bewerberinnen und Bewerber.</h2>
+        <div class="card hero animate-in-delay-1">
+          <div class="hero-pattern"></div>
+          <span class="pill"><span class="pill-dot"></span> Digitaler Eignungstest</span>
+          <h2>Behördliches Auswahlverfahren für Bewerberinnen und Bewerber</h2>
           <p>Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem Personalwesen zur Verfügung.</p>
           <div class="stat-grid">
             <div class="stat"><span>Dauer</span><strong>25 Min.</strong></div>
             <div class="stat"><span>Bereiche</span><strong>4 Module</strong></div>
-            <div class="stat"><span>Navigation</span><strong>Ohne Rücksprung</strong></div>
+            <div class="stat"><span>Fragen</span><strong>20 Aufgaben</strong></div>
           </div>
         </div>
-        <div class="card form-card">
+        <div class="card form-card animate-in-delay-2">
+          <div class="form-header-icon">${icons.user}</div>
           <div class="eyebrow">Bewerberzugang</div>
           <h2>Prüfung starten</h2>
           <p class="muted">Name, Geburtsdatum und den einmaligen Zugangscode des Personalwesens eingeben.</p>
@@ -175,13 +193,13 @@
             <div class="field"><label>Vollständiger Name</label><input class="input" id="candidate-name" autocomplete="off" placeholder="Max Mustermann" required></div>
             <div class="field"><label>Geburtsdatum</label><input class="input" id="candidate-birth" type="date" required></div>
             <div class="field"><label>Zugangscode</label><input class="input code-input" id="candidate-code" maxlength="9" placeholder="AB3K-7HNP" required></div>
-            <div class="notice notice-info">Während der Prüfung werden Rechtsklick, Kopieren und typische Screenshot-Tasten blockiert. Das Verlassen der Ansicht wird protokolliert.</div>
+            <div class="notice notice-info">${icons.info}<span>Während der Prüfung werden Rechtsklick, Kopieren und typische Screenshot-Tasten blockiert. Das Verlassen der Ansicht wird protokolliert.</span></div>
             <div style="height:12px"></div>${noticeHtml()}
-            <button class="btn btn-primary" style="width:100%;margin-top:14px" type="submit">Auswahlprüfung starten</button>
+            <button class="btn btn-primary" style="width:100%;margin-top:16px" type="submit">Auswahlprüfung starten →</button>
           </form>
         </div>
       </section>
-    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">Schließen ×</button>' : ''}`;
+    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">' + icons.close + ' Schließen</button>' : ''}`;
 
     document.getElementById('open-login').onclick = () => { state.view = 'login'; state.error = ''; render(); };
     document.getElementById('close-nui')?.addEventListener('click', closeNui);
@@ -225,16 +243,17 @@
   function renderLogin() {
     root.innerHTML = `<div class="shell login-layout"><div class="card login-card">
       ${logoBrand('Interner Zugang Personalwesen')}
-      <div style="height:24px"></div>
+      <div class="login-divider"></div>
+      <div class="form-header-icon">${icons.lock}</div>
       <h2>Personalwesen Login</h2>
       <p class="muted">Die Anmeldung wird ausschließlich serverseitig geprüft.</p>
       <form id="login-form">
-        <div class="field"><label>Benutzername</label><input class="input" id="staff-user" autocomplete="username" required></div>
-        <div class="field"><label>Passwort</label><input class="input" id="staff-pass" type="password" autocomplete="current-password" required></div>
+        <div class="field"><label>Benutzername</label><input class="input" id="staff-user" autocomplete="username" placeholder="Benutzername eingeben" required></div>
+        <div class="field"><label>Passwort</label><input class="input" id="staff-pass" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
         ${noticeHtml()}
-        <div class="inline-actions"><button type="button" class="btn btn-secondary" id="login-back">Zurück</button><button type="submit" class="btn btn-primary">Anmelden</button></div>
+        <div class="inline-actions" style="margin-top:20px"><button type="button" class="btn btn-secondary" id="login-back">← Zurück</button><button type="submit" class="btn btn-primary">${icons.lock} Anmelden</button></div>
       </form>
-    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">Schließen ×</button>' : ''}`;
+    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">' + icons.close + ' Schließen</button>' : ''}`;
     document.getElementById('login-back').onclick = () => { state.view = 'home'; state.error = ''; render(); };
     document.getElementById('close-nui')?.addEventListener('click', closeNui);
     document.getElementById('login-form').onsubmit = handleLogin;
@@ -284,6 +303,28 @@
     state.exam.questionTime = Number.isFinite(question.timeLimit) ? question.timeLimit : null;
   }
 
+  function updateExamTimers() {
+    const exam = state.exam;
+    if (!exam) return;
+    const globalTimer = root.querySelector('[data-global-timer]');
+    const questionTimer = root.querySelector('[data-question-timer]');
+    const progressBar = root.querySelector('[data-progress]');
+    const progressLabel = root.querySelector('[data-progress-label]');
+    if (globalTimer) {
+      globalTimer.innerHTML = `${icons.clock} Restzeit ${formatTime(exam.globalTime)}`;
+      globalTimer.classList.toggle('danger', exam.globalTime < 300);
+    }
+    if (questionTimer && exam.questionTime !== null) {
+      questionTimer.innerHTML = `${icons.clock} Frage ${exam.questionTime}s`;
+    }
+    if (progressBar) {
+      progressBar.style.width = `${((exam.index + 1) / exam.questions.length) * 100}%`;
+    }
+    if (progressLabel) {
+      progressLabel.textContent = `Frage ${exam.index + 1} von ${exam.questions.length}`;
+    }
+  }
+
   function startExamTimer() {
     stopExamTimer();
     examTimer = window.setInterval(() => {
@@ -294,7 +335,7 @@
         state.exam.questionTime -= 1;
         if (state.exam.questionTime <= 0) { advanceQuestion(true); return; }
       }
-      render();
+      updateExamTimers();
     }, 1000);
   }
 
@@ -318,27 +359,28 @@
     const progress = ((exam.index + 1) / exam.questions.length) * 100;
     const source = question.text ? `<div class="source-text">${nl2br(question.text)}</div>` : '';
     const stimulus = question.stimulus ? `<div class="source-text stimulus">${question.stimulus}</div>` : '';
-    const options = question.options.map((option) => `<button class="option ${exam.selected === option.id ? 'selected' : ''}" data-option="${h(option.id)}">
-      <span class="option-key">${h(option.id)}</span><span>${h(option.text)}</span></button>`).join('');
+    const options = question.options.map((option) => `<button class="option ${exam.selected === option.id ? 'selected' : ''}" data-option="${h(option.id)}" type="button" aria-pressed="${exam.selected === option.id}">
+      <span class="option-key">${h(option.id)}</span><span class="option-text">${h(option.text)}</span></button>`).join('');
 
     root.innerHTML = `<div class="exam-shell">
       <header class="exam-header"><div class="exam-header-inner">
         ${logoBrand(`Verfahrensnummer: ${state.candidate?.candidateId || '–'}`)}
         <div class="timer-row">
-          ${exam.questionTime !== null ? `<div class="timer">Frage ${exam.questionTime}s</div>` : ''}
-          <div class="timer ${exam.globalTime < 300 ? 'danger' : ''}">Restzeit ${formatTime(exam.globalTime)}</div>
+          ${exam.questionTime !== null ? `<div class="timer" data-question-timer>${icons.clock} Frage ${exam.questionTime}s</div>` : ''}
+          <div class="timer ${exam.globalTime < 300 ? 'danger' : ''}" data-global-timer>${icons.clock} Restzeit ${formatTime(exam.globalTime)}</div>
         </div>
       </div></header>
-      <div class="progress"><div style="width:${progress}%"></div></div>
+      <div class="progress-label" data-progress-label>Frage ${exam.index + 1} von ${exam.questions.length}</div>
+      <div class="progress-wrap"><div class="progress" data-progress style="width:${progress}%"></div></div>
       <main class="exam-main"><section class="card question-card">
-        <div class="section-tag">${h(categoryLabel(question.category))} · Frage ${exam.index + 1} von ${exam.questions.length}</div>
+        <div class="section-tag">${h(categoryLabel(question.category))}</div>
         <h2 class="question-title">${h(question.title)}</h2>
         ${source}${stimulus}
         <div class="question-text">${nl2br(question.question)}</div>
-        <div class="options">${options}</div>
-        <div class="exam-actions"><span class="muted small">Antworten können nach dem Fortfahren nicht geändert werden.</span><button class="btn btn-primary" id="next-question" ${exam.selected === null ? 'disabled' : ''}>${exam.index === exam.questions.length - 1 ? 'Prüfung abschließen' : 'Weiter'}</button></div>
+        <div class="options" role="radiogroup">${options}</div>
+        <div class="exam-actions"><span class="muted small">Antworten können nach dem Fortfahren nicht geändert werden.</span><button class="btn btn-primary" id="next-question" ${exam.selected === null ? 'disabled' : ''}>${exam.index === exam.questions.length - 1 ? 'Prüfung abschließen' : 'Weiter →'}</button></div>
       </section></main>
-      ${state.blocked ? '<div class="block-screen"><div><div style="font-size:64px">🛡️</div><h2>PRÜFUNGSANSICHT GESPERRT</h2><p>Der Bildschirminhalt wurde zum Schutz der Prüfung ausgeblendet.<br>Kehren Sie zur Prüfungsansicht zurück.</p></div></div>' : ''}
+      ${state.blocked ? `<div class="block-screen"><div class="block-screen-inner">${icons.shield}<h2>Prüfungsansicht gesperrt</h2><p>Der Bildschirminhalt wurde zum Schutz der Prüfung ausgeblendet.<br>Kehren Sie zur Prüfungsansicht zurück.</p></div></div>` : ''}
     </div>`;
 
     root.querySelectorAll('[data-option]').forEach((button) => {
@@ -396,11 +438,20 @@
   }
 
   function renderSaving() {
+    const hasError = Boolean(state.error);
     root.innerHTML = `<div class="shell login-layout"><div class="card login-card" style="text-align:center">
       ${logoBrand('Prüfung wird übermittelt')}
-      <div style="height:22px"></div><h2>Abgabe wird gespeichert</h2>
+      <div class="login-divider"></div>
+      ${hasError ? '' : '<div class="spinner"></div>'}
+      <h2>${hasError ? 'Speichern fehlgeschlagen' : 'Abgabe wird gespeichert'}</h2>
       <p class="muted">Die Antworten und Prüfungsdaten werden sicher in der Prüfungsakte gespeichert.</p>
-      ${state.error ? `<div class="notice notice-error">${h(state.error)}</div><button class="btn btn-primary" id="retry-save" style="margin-top:14px">Erneut speichern</button>` : '<div class="notice notice-info">Bitte die Anwendung nicht schließen.</div>'}
+      ${hasError ? `<div class="notice notice-error">${icons.info}<span>${h(state.error)}</span></div><button class="btn btn-primary" id="retry-save" style="margin-top:16px">Erneut speichern</button>` : `
+        <div class="saving-steps">
+          <div class="saving-step done"><span class="step-dot"></span>Antworten erfasst</div>
+          <div class="saving-step active"><span class="step-dot"></span>Übermittlung an Server</div>
+          <div class="saving-step"><span class="step-dot"></span>Bestätigung erhalten</div>
+        </div>
+        <div class="notice notice-info" style="margin-top:20px">${icons.info}<span>Bitte die Anwendung nicht schließen.</span></div>`}
     </div></div>`;
     document.getElementById('retry-save')?.addEventListener('click', submitPendingRecord);
   }
@@ -408,24 +459,24 @@
   function renderResult() {
     const receipt = state.result;
     if (!receipt) { state.view = 'home'; render(); return; }
-    root.innerHTML = `<div class="shell"><div class="wrap">
+    root.innerHTML = `<div class="shell"><div class="wrap animate-in">
       ${topbar('')}
       <section class="card result-card">
         <div class="eyebrow">Prüfung abgeschlossen</div>
         <h2>Abgabe erfolgreich</h2>
-        <div style="font-size:64px;margin:16px 0">✓</div>
+        ${icons.check}
         <p>Ihre Prüfung wurde gespeichert und an das Personalwesen zur internen Prüfung übermittelt.</p>
-        <div class="notice notice-info">Das Ergebnis sowie eine mögliche Zertifikatsausstellung werden ausschließlich im Admin-Dashboard bearbeitet und in dieser Ansicht nicht angezeigt.</div>
-        <div class="detail-grid" style="margin-top:18px;text-align:left">
+        <div class="notice notice-info">${icons.info}<span>Das Ergebnis sowie eine mögliche Zertifikatsausstellung werden ausschließlich im Admin-Dashboard bearbeitet und in dieser Ansicht nicht angezeigt.</span></div>
+        <div class="detail-grid" style="margin-top:24px;text-align:left">
           <div class="detail-box"><div class="small muted">Bewerber</div><strong>${h(receipt.candidateName)}</strong></div>
           <div class="detail-box"><div class="small muted">Verfahrensnummer</div><strong>${h(receipt.candidateId)}</strong></div>
           <div class="detail-box"><div class="small muted">Abgegeben am</div><strong>${formatDate(receipt.completedAt, true)}</strong></div>
           <div class="detail-box"><div class="small muted">Status</div><strong>Beim Personalwesen eingegangen</strong></div>
         </div>
         ${noticeHtml()}
-        <div class="inline-actions" style="justify-content:center"><button class="btn btn-primary" id="result-home">Zur Startseite</button></div>
+        <div class="inline-actions" style="justify-content:center;margin-top:24px"><button class="btn btn-primary" id="result-home">Zur Startseite</button></div>
       </section>
-    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">Schließen ×</button>' : ''}`;
+    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">' + icons.close + ' Schließen</button>' : ''}`;
     document.getElementById('result-home').onclick = () => { state.view = 'home'; state.candidate = null; state.result = null; state.error = ''; state.info = ''; render(); };
     document.getElementById('close-nui')?.addEventListener('click', closeNui);
   }
@@ -461,19 +512,23 @@
     const passed = state.records.filter((record) => record.evaluation?.finalDecision === 'BESTANDEN').length;
     const failed = state.records.length - passed;
     const openCodes = state.codes.filter((code) => !code.used).length;
-    root.innerHTML = `<div class="shell"><div class="wrap">
-      ${topbar(`<span class="muted"><strong>${h(state.staffName)}</strong><br>${h(state.staffRank)}</span><button class="btn btn-secondary" id="logout">Abmelden</button>`)}
+    root.innerHTML = `<div class="shell"><div class="wrap animate-in">
+      ${topbar(`<div class="staff-badge"><div class="staff-avatar">${staffInitials(state.staffName)}</div><div><strong>${h(state.staffName)}</strong><br><span class="small muted">${h(state.staffRank)}</span></div></div><button class="btn btn-secondary" id="logout">${icons.logout} Abmelden</button>`)}
       ${noticeHtml()}
       <div class="admin-layout">
         <aside class="card sidebar">
           <div class="eyebrow">Verwaltung</div><h2>Personalwesen</h2>
-          <div class="admin-stats"><div class="admin-stat"><strong>${state.records.length}</strong><span>Akten</span></div><div class="admin-stat"><strong>${passed}</strong><span>Bestanden</span></div><div class="admin-stat"><strong>${openCodes}</strong><span>Codes</span></div></div>
+          <div class="admin-stats">
+            <div class="admin-stat"><strong>${state.records.length}</strong><span>Akten</span></div>
+            <div class="admin-stat"><strong>${passed}</strong><span>Bestanden</span></div>
+            <div class="admin-stat"><strong>${openCodes}</strong><span>Codes</span></div>
+          </div>
           <div class="tabs"><button class="btn tab ${state.adminTab === 'records' ? 'active' : 'btn-secondary'}" data-tab="records">Prüfungsakten</button><button class="btn tab ${state.adminTab === 'codes' ? 'active' : 'btn-secondary'}" data-tab="codes">Zugangscodes</button></div>
           ${state.adminTab === 'records' ? renderRecordList() : renderCodeList()}
         </aside>
         <main class="card content">${state.adminTab === 'records' ? renderRecordDetail() : renderCodeManager()}</main>
       </div>
-    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">Schließen ×</button>' : ''}`;
+    </div></div>${isNui ? '<button class="btn btn-secondary close-fixed" id="close-nui">' + icons.close + ' Schließen</button>' : ''}`;
 
     document.getElementById('logout').onclick = logout;
     document.getElementById('close-nui')?.addEventListener('click', closeNui);
@@ -536,14 +591,19 @@
   }
 
   function renderCodeList() {
-    const items = state.codes.map((code) => `<div class="code-item"><strong style="font-family:ui-monospace,monospace;letter-spacing:.1em">${h(code.code)}</strong><div class="small">${h(code.candidateName)} · ${formatDate(code.candidateBirthDate)}</div><div class="small muted">${code.used ? `Verwendet von ${h(code.usedBy || '–')}` : 'Verfügbar'}</div><button class="btn btn-danger" style="margin-top:8px;padding:7px 10px" data-delete-code="${h(code.code)}">Löschen</button></div>`).join('');
+    const items = state.codes.map((code) => `<div class="code-item">
+      <span class="code-value">${h(code.code)}</span>
+      <div class="small">${h(code.candidateName)} · ${formatDate(code.candidateBirthDate)}</div>
+      <div class="small muted">${code.used ? `Verwendet von ${h(code.usedBy || '–')}` : '● Verfügbar'}</div>
+      <button class="btn btn-danger" style="margin-top:4px;padding:7px 12px;font-size:0.8125rem" data-delete-code="${h(code.code)}">Löschen</button>
+    </div>`).join('');
     return `<div class="code-list">${items || '<div class="empty">Noch keine Zugangscodes.</div>'}</div>`;
   }
 
   function renderCodeManager() {
     return `<div class="eyebrow">Bewerberzugang</div><h2>Einmaligen Zugangscode erstellen</h2><p class="muted">Der Code ist an den eingegebenen Namen und das Geburtsdatum gebunden.</p>
-      <form id="create-code-form"><div class="code-row"><div class="field"><label>Name des Bewerbers</label><input class="input" id="new-code-name" required></div><div class="field"><label>Geburtsdatum</label><input class="input" id="new-code-birth" type="date" required></div><button class="btn btn-primary" type="submit" style="margin-bottom:16px">Code erstellen</button></div></form>
-      <div class="notice notice-info">Offene Codes: ${state.codes.filter((code) => !code.used).length} · Bereits verwendet: ${state.codes.filter((code) => code.used).length}</div>`;
+      <form id="create-code-form"><div class="code-row"><div class="field"><label>Name des Bewerbers</label><input class="input" id="new-code-name" placeholder="Max Mustermann" required></div><div class="field"><label>Geburtsdatum</label><input class="input" id="new-code-birth" type="date" required></div><button class="btn btn-primary" type="submit" style="margin-bottom:16px">${icons.key} Code erstellen</button></div></form>
+      <div class="notice notice-info">${icons.info}<span>Offene Codes: ${state.codes.filter((code) => !code.used).length} · Bereits verwendet: ${state.codes.filter((code) => code.used).length}</span></div>`;
   }
 
   async function createCode(event) {
