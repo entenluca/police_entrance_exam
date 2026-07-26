@@ -4,7 +4,7 @@ lua54 'yes'
 
 author 'FiveM conversion by OpenAI'
 description 'Standalone Polizei-Eignungsprüfung mit NUI und Lua-Persistenz'
-version '1.2.2'
+version '1.2.3'
 
 ui_page 'web/index.html'
 
@@ -23,7 +23,6 @@ files {
     'web/styles.css',
     'web/questions.js',
     'web/dom.js',
-    'web/exam-app.js',
     'web/app.js',
     'web/logo.svg'
 }
