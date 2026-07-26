@@ -208,24 +208,23 @@ body {
   min-height: 0;
   border-radius: 12px;
   overflow: hidden auto;
-  background: linear-gradient(180deg, #d5dde6 0%, #e4eaf0 100%);
-  padding: 22px;
+  background: #d0d8e0;
+  padding: 6px;
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.35),
     inset 0 2px 12px rgba(0, 0, 0, 0.15);
   scrollbar-width: thin;
   scrollbar-color: #94a3b8 transparent;
-  font-size: 0.9rem;
 }
 
-/* UI im Tablet etwas kompakter darstellen */
+/* UI nutzt fast den ganzen Bildschirm – kompakt, aber auf einen Blick */
 .tablet-screen .shell,
 .tablet-screen .exam-shell {
   min-height: auto;
-  padding: 12px;
-  border-radius: 14px;
+  padding: 4px;
+  border-radius: 10px;
   background: var(--bg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: none;
 }
 
 .tablet-screen .wrap {
@@ -233,56 +232,76 @@ body {
 }
 
 .tablet-screen .topbar {
-  padding: 12px 16px;
-  margin-bottom: 14px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
 }
 
 .tablet-screen .logo-box {
-  width: 54px;
-  height: 54px;
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
 }
 
 .tablet-screen .logo-box img {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
+}
+
+.tablet-screen .eyebrow {
+  font-size: 10px;
 }
 
 .tablet-screen h1 {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
 }
 
 .tablet-screen h2 {
-  font-size: 1.3rem;
+  font-size: 1.2rem;
 }
 
 .tablet-screen .grid-home {
-  gap: 14px;
+  gap: 10px;
+  align-items: stretch;
 }
 
 .tablet-screen .hero {
-  min-height: 380px;
-  padding: 26px;
+  min-height: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .tablet-screen .hero h2 {
-  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  margin-top: 10px;
+  font-size: clamp(1.25rem, 1.8vw, 1.65rem);
+  line-height: 1.15;
 }
 
 .tablet-screen .hero p {
-  font-size: 0.9rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+.tablet-screen .pill {
+  margin-bottom: 0;
+  padding: 6px 10px;
+  font-size: 10px;
 }
 
 .tablet-screen .stat-grid {
-  margin-top: 22px;
-  gap: 10px;
+  margin-top: 14px;
+  gap: 8px;
 }
 
 .tablet-screen .stat {
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 
 .tablet-screen .stat strong {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  margin-top: 4px;
 }
 
 .tablet-screen .form-card,
@@ -290,31 +309,96 @@ body {
 .tablet-screen .question-card,
 .tablet-screen .content,
 .tablet-screen .sidebar {
-  padding: 22px;
+  padding: 16px;
+}
+
+.tablet-screen .form-header-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 10px;
+}
+
+.tablet-screen .field {
+  margin-bottom: 10px;
+}
+
+.tablet-screen .field label {
+  margin-bottom: 4px;
+  font-size: 0.75rem;
+}
+
+.tablet-screen .input {
+  padding: 10px 12px;
+}
+
+.tablet-screen .notice {
+  padding: 10px 12px;
+  font-size: 0.8125rem;
+}
+
+.tablet-screen .btn {
+  padding: 9px 14px;
+  font-size: 0.8125rem;
 }
 
 .tablet-screen .result-card {
-  padding: 28px;
+  padding: 22px;
 }
 
 .tablet-screen .exam-main {
-  padding: 20px 14px 32px;
+  padding: 12px 10px 20px;
 }
 
 .tablet-screen .exam-header {
-  padding: 10px 16px;
+  padding: 8px 12px;
+}
+
+.tablet-screen .exam-header .brand h1 {
+  font-size: 0.95rem;
 }
 
 .tablet-screen .question-title {
-  font-size: 1.25rem;
+  font-size: 1.15rem;
+  margin-bottom: 12px;
+}
+
+.tablet-screen .question-text {
+  font-size: 0.9rem;
+}
+
+.tablet-screen .options {
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.tablet-screen .option {
+  padding: 10px 12px;
 }
 
 .tablet-screen .admin-layout {
-  gap: 14px;
+  gap: 10px;
+}
+
+.tablet-screen .admin-stats {
+  margin: 12px 0;
+  gap: 6px;
+}
+
+.tablet-screen .admin-stat {
+  padding: 8px;
+}
+
+.tablet-screen .admin-stat strong {
+  font-size: 1.1rem;
 }
 
 .tablet-screen .card {
-  border-radius: 18px;
+  border-radius: 14px;
+}
+
+.tablet-screen .record-list,
+.tablet-screen .code-list {
+  max-height: 340px;
 }
 
 .tablet-screen::-webkit-scrollbar {
@@ -1493,9 +1577,10 @@ h2 {
   .result-card { padding: var(--space-6); }
   #tablet-stage { padding: 6px; }
   .tablet-bezel { width: min(98vw, calc(90vh * 16 / 10)); padding: 12px 12px 14px; border-radius: 16px; }
-  .tablet-screen { padding: 14px; font-size: 0.85rem; }
+  .tablet-screen { padding: 4px; }
   .tablet-chassis { padding: 8px; border-radius: 22px; }
   .tablet-side-controls { padding-top: 36px; gap: 10px; }
   .tablet-close { top: 2px; right: 2px; font-size: 0.75rem; padding: 7px 10px; }
-  .tablet-screen .hero { min-height: auto; padding: 18px; }
+  .tablet-screen .hero { padding: 14px; }
+  .tablet-screen .form-card { padding: 14px; }
 }
