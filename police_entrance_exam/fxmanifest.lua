@@ -19,6 +19,7 @@ files {
     'web/index.html',
     'web/styles.css',
     'web/questions.js',
+    'web/dom.js',
     'web/app.js',
     'web/logo.svg'
 }

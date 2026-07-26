@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  const { el, mount, frag, setMultiline, field, btn, notice, icon, timerLabel, setTimerContent } = window.PoliceExamDOM;
+
   const DATA = window.POLICE_EXAM_DATA || { questions: [], sections: {} };
   const QUESTIONS = DATA.questions || [];
   const SECTIONS = DATA.sections || {};
@@ -37,18 +39,6 @@
   let examTimer = null;
   let adminPoll = null;
 
-  const icons = {
-    clock: '<svg class="timer-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
-    shield: '<svg class="block-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2l8 4v6c0 5.25-3.5 10-8 12-4.5-2-8-6.75-8-12V6l8-4z"/><path d="M9 12l2 2 4-4" stroke-width="2"/></svg>',
-    check: '<svg class="result-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>',
-    info: '<svg class="notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
-    user: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
-    lock: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>',
-    key: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>',
-    close: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
-    logout: '<svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>',
-  };
-
   const h = (value) => String(value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -56,7 +46,6 @@
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 
-  const nl2br = (value) => h(value).replaceAll('\n', '<br>');
   const pad = (n) => String(n).padStart(2, '0');
   const formatTime = (seconds) => `${pad(Math.floor(Math.max(0, seconds) / 60))}:${pad(Math.max(0, seconds) % 60)}`;
   const formatDate = (value, withTime = false) => {
@@ -189,21 +178,29 @@
     return SECTIONS[category]?.title || category;
   }
 
-  function logoBrand(subtitle = 'Auswahlverfahren – digitale Eignungsprüfung') {
-    return `<div class="brand">
-      <div class="logo-box"><img src="logo.svg" alt="Polizeistern"></div>
-      <div><div class="eyebrow">Land Niedersachsen</div><h1>Polizeiinspektion Hannover</h1><div class="muted">${h(subtitle)}</div></div>
-    </div>`;
+  function buildLogoBrand(subtitle = 'Auswahlverfahren – digitale Eignungsprüfung') {
+    return el('div', { className: 'brand' },
+      el('div', { className: 'logo-box' }, el('img', { src: 'logo.svg', alt: 'Polizeistern' })),
+      el('div', {},
+        el('div', { className: 'eyebrow', text: 'Land Niedersachsen' }),
+        el('h1', { text: 'Polizeiinspektion Hannover' }),
+        el('div', { className: 'muted', text: subtitle }),
+      ),
+    );
   }
 
-  function topbar(extra = '') {
-    return `<header class="card topbar">${logoBrand()}<div class="inline-actions">${extra}</div></header>`;
+  function buildTopbar(extra = null) {
+    return el('header', { className: 'card topbar' },
+      buildLogoBrand(),
+      el('div', { className: 'inline-actions' }, extra),
+    );
   }
 
-  function noticeHtml() {
-    const error = state.error ? `<div class="notice notice-error">${icons.info}<span>${h(state.error)}</span></div>` : '';
-    const info = state.info ? `<div class="notice notice-success">${icons.check}<span>${h(state.info)}</span></div>` : '';
-    return `${error}${info}`;
+  function buildNotices() {
+    const nodes = [];
+    if (state.error) nodes.push(notice('error', icon('info'), el('span', { text: state.error })));
+    if (state.info) nodes.push(notice('success', icon('check'), el('span', { text: state.info })));
+    return frag(...nodes);
   }
 
   function staffInitials(name) {
@@ -211,43 +208,53 @@
   }
 
   function renderHome() {
-    root.innerHTML = `<div class="shell"><div class="wrap animate-in">
-      ${topbar('<button class="btn btn-secondary" id="open-login">' + icons.lock + ' Personalwesen</button>')}
-      <section class="grid-home">
-        <div class="card hero animate-in-delay-1">
-          <div class="hero-pattern"></div>
-          <span class="pill"><span class="pill-dot"></span> Digitaler Eignungstest</span>
-          <h2>Behördliches Auswahlverfahren für Bewerberinnen und Bewerber</h2>
-          <p>Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem Personalwesen zur Verfügung.</p>
-          <div class="stat-grid">
-            <div class="stat"><span>Dauer</span><strong>25 Min.</strong></div>
-            <div class="stat"><span>Bereiche</span><strong>4 Module</strong></div>
-            <div class="stat"><span>Fragen</span><strong>20 Aufgaben</strong></div>
-          </div>
-        </div>
-        <div class="card form-card animate-in-delay-2">
-          <div class="form-header-icon">${icons.user}</div>
-          <div class="eyebrow">Bewerberzugang</div>
-          <h2>Prüfung starten</h2>
-          <p class="muted">Name, Geburtsdatum und den einmaligen Zugangscode des Personalwesens eingeben.</p>
-          <form id="candidate-form">
-            <div class="field"><label>Vollständiger Name</label><input class="input" id="candidate-name" autocomplete="off" placeholder="Max Mustermann" required></div>
-            <div class="field"><label>Geburtsdatum</label><input class="input" id="candidate-birth" type="date" required></div>
-            <div class="field"><label>Zugangscode</label><input class="input code-input" id="candidate-code" maxlength="9" placeholder="AB3K-7HNP" required></div>
-            <div class="notice notice-info">${icons.info}<span>Während der Prüfung werden Rechtsklick, Kopieren und typische Screenshot-Tasten blockiert. Das Verlassen der Ansicht wird protokolliert.</span></div>
-            <div style="height:12px"></div>${noticeHtml()}
-            <button class="btn btn-primary" style="width:100%;margin-top:16px" type="submit">Auswahlprüfung starten →</button>
-          </form>
-        </div>
-      </section>
-    </div></div>`;
+    const openLoginBtn = el('button', { className: 'btn btn-secondary', id: 'open-login', type: 'button' }, icon('lock'), ' Personalwesen');
+    const nameInput = el('input', { className: 'input', id: 'candidate-name', autocomplete: 'off', placeholder: 'Max Mustermann', required: true });
+    const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true });
+    const codeInput = el('input', { className: 'input code-input', id: 'candidate-code', maxlength: '9', placeholder: 'AB3K-7HNP', required: true });
+
+    mount(root,
+      el('div', { className: 'shell' },
+        el('div', { className: 'wrap animate-in' },
+          buildTopbar(openLoginBtn),
+          el('section', { className: 'grid-home' },
+            el('div', { className: 'card hero animate-in-delay-1' },
+              el('div', { className: 'hero-pattern' }),
+              el('span', { className: 'pill' }, el('span', { className: 'pill-dot' }), ' Digitaler Eignungstest'),
+              el('h2', { text: 'Behördliches Auswahlverfahren für Bewerberinnen und Bewerber' }),
+              el('p', { text: 'Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem Personalwesen zur Verfügung.' }),
+              el('div', { className: 'stat-grid' },
+                el('div', { className: 'stat' }, el('span', { text: 'Dauer' }), el('strong', { text: '25 Min.' })),
+                el('div', { className: 'stat' }, el('span', { text: 'Bereiche' }), el('strong', { text: '4 Module' })),
+                el('div', { className: 'stat' }, el('span', { text: 'Fragen' }), el('strong', { text: '20 Aufgaben' })),
+              ),
+            ),
+            el('div', { className: 'card form-card animate-in-delay-2' },
+              el('div', { className: 'form-header-icon' }, icon('user')),
+              el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
+              el('h2', { text: 'Prüfung starten' }),
+              el('p', { className: 'muted', text: 'Name, Geburtsdatum und den einmaligen Zugangscode des Personalwesens eingeben.' }),
+              el('form', { id: 'candidate-form' },
+                field('Vollständiger Name', nameInput),
+                field('Geburtsdatum', birthInput),
+                field('Zugangscode', codeInput),
+                notice('info', icon('info'), el('span', { text: 'Während der Prüfung werden Rechtsklick, Kopieren und typische Screenshot-Tasten blockiert. Das Verlassen der Ansicht wird protokolliert.' })),
+                el('div', { style: { height: '12px' } }),
+                buildNotices(),
+                el('button', { className: 'btn btn-primary', style: { width: '100%', marginTop: '16px' }, type: 'submit', text: 'Auswahlprüfung starten →' }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
 
     document.getElementById('open-login').onclick = () => { state.view = 'login'; state.error = ''; render(); };
-    const codeInput = document.getElementById('candidate-code');
-    codeInput.addEventListener('input', () => {
-      let value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    const codeField = document.getElementById('candidate-code');
+    codeField.addEventListener('input', () => {
+      let value = codeField.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
       if (value.length > 4) value = `${value.slice(0, 4)}-${value.slice(4)}`;
-      codeInput.value = value;
+      codeField.value = value;
     });
     document.getElementById('candidate-form').onsubmit = handleCandidateSubmit;
   }
@@ -281,31 +288,33 @@
   }
 
   function renderLogin() {
-    root.innerHTML = `<div class="shell login-page">
-      <div class="login-split">
-        <aside class="login-brand">
-          ${logoBrand('Interner Zugang Personalwesen')}
-          <div class="login-brand-body">
-            <h2>Zugang für autorisiertes Personal</h2>
-            <p>Verwaltung von Prüfungsakten, Bewerber-Zugangscodes und Zertifikatsausstellung.</p>
-          </div>
-        </aside>
-        <section class="login-panel">
-          <div class="form-header-icon">${icons.lock}</div>
-          <h2>Personalwesen Login</h2>
-          <p class="muted">Die Anmeldung wird ausschließlich serverseitig geprüft.</p>
-          <form id="login-form">
-            <div class="field"><label>Benutzername</label><input class="input" id="staff-user" autocomplete="username" placeholder="Benutzername eingeben" required></div>
-            <div class="field"><label>Passwort</label><input class="input" id="staff-pass" type="password" autocomplete="current-password" placeholder="••••••••" required></div>
-            ${noticeHtml()}
-            <div class="login-actions">
-              <button type="button" class="btn btn-secondary" id="login-back">← Zurück</button>
-              <button type="submit" class="btn btn-primary">${icons.lock} Anmelden</button>
-            </div>
-          </form>
-        </section>
-      </div>
-    </div>`;
+    mount(root,
+      el('div', { className: 'shell login-page' },
+        el('div', { className: 'login-split' },
+          el('aside', { className: 'login-brand' },
+            buildLogoBrand('Interner Zugang Personalwesen'),
+            el('div', { className: 'login-brand-body' },
+              el('h2', { text: 'Zugang für autorisiertes Personal' }),
+              el('p', { text: 'Verwaltung von Prüfungsakten, Bewerber-Zugangscodes und Zertifikatsausstellung.' }),
+            ),
+          ),
+          el('section', { className: 'login-panel' },
+            el('div', { className: 'form-header-icon' }, icon('lock')),
+            el('h2', { text: 'Personalwesen Login' }),
+            el('p', { className: 'muted', text: 'Die Anmeldung wird ausschließlich serverseitig geprüft.' }),
+            el('form', { id: 'login-form' },
+              field('Benutzername', el('input', { className: 'input', id: 'staff-user', autocomplete: 'username', placeholder: 'Benutzername eingeben', required: true })),
+              field('Passwort', el('input', { className: 'input', id: 'staff-pass', type: 'password', autocomplete: 'current-password', placeholder: '••••••••', required: true })),
+              buildNotices(),
+              el('div', { className: 'login-actions' },
+                el('button', { className: 'btn btn-secondary', id: 'login-back', type: 'button', text: '← Zurück' }),
+                el('button', { className: 'btn btn-primary', type: 'submit' }, icon('lock'), ' Anmelden'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
     document.getElementById('login-back').onclick = () => { state.view = 'home'; state.error = ''; render(); };
     document.getElementById('login-form').onsubmit = handleLogin;
   }
@@ -362,11 +371,11 @@
     const progressBar = root.querySelector('[data-progress]');
     const progressLabel = root.querySelector('[data-progress-label]');
     if (globalTimer) {
-      globalTimer.innerHTML = `${icons.clock} Restzeit ${formatTime(exam.globalTime)}`;
+      setTimerContent(globalTimer, 'Restzeit ', formatTime(exam.globalTime));
       globalTimer.classList.toggle('danger', exam.globalTime < 300);
     }
     if (questionTimer && exam.questionTime !== null) {
-      questionTimer.innerHTML = `${icons.clock} Frage ${exam.questionTime}s`;
+      setTimerContent(questionTimer, 'Frage ', `${exam.questionTime}s`);
     }
     if (progressBar) {
       progressBar.style.width = `${((exam.index + 1) / exam.questions.length) * 100}%`;
@@ -403,17 +412,51 @@
     state.exam.incidents.push({ type, message, timestamp: new Date().toISOString() });
   }
 
-  function examQuestionBodyHTML(question, exam) {
-    const source = question.text ? `<div class="source-text">${nl2br(question.text)}</div>` : '';
-    const stimulus = question.stimulus ? `<div class="source-text stimulus">${question.stimulus}</div>` : '';
-    const options = question.options.map((option) => `<button class="option ${exam.selected === option.id ? 'selected' : ''}" data-option="${h(option.id)}" type="button" aria-pressed="${exam.selected === option.id}">
-      <span class="option-key">${h(option.id)}</span><span class="option-text">${h(option.text)}</span></button>`).join('');
-    return `<div class="section-tag">${h(categoryLabel(question.category))}</div>
-      <h2 class="question-title">${h(question.title)}</h2>
-      ${source}${stimulus}
-      <div class="question-text">${nl2br(question.question)}</div>
-      <div class="options" role="radiogroup">${options}</div>
-      <div class="exam-actions"><span class="muted small">Antworten können nach dem Fortfahren nicht geändert werden.</span><button class="btn btn-primary" id="next-question" ${exam.selected === null ? 'disabled' : ''}>${exam.index === exam.questions.length - 1 ? 'Prüfung abschließen' : 'Weiter →'}</button></div>`;
+  function buildExamQuestionBody(question, exam) {
+    const parts = [
+      el('div', { className: 'section-tag', text: categoryLabel(question.category) }),
+      el('h2', { className: 'question-title', text: question.title }),
+    ];
+
+    if (question.text) {
+      const sourceText = el('div', { className: 'source-text' });
+      setMultiline(sourceText, question.text);
+      parts.push(sourceText);
+    }
+
+    if (question.stimulus) {
+      parts.push(el('div', { className: 'source-text stimulus', html: question.stimulus }));
+    }
+
+    const questionText = el('div', { className: 'question-text' });
+    setMultiline(questionText, question.question);
+    parts.push(questionText);
+
+    const options = el('div', { className: 'options', role: 'radiogroup' },
+      ...question.options.map((option) => el('button', {
+        className: `option${exam.selected === option.id ? ' selected' : ''}`,
+        dataset: { option: option.id },
+        type: 'button',
+        'aria-pressed': exam.selected === option.id ? 'true' : 'false',
+      },
+        el('span', { className: 'option-key', text: option.id }),
+        el('span', { className: 'option-text', text: option.text }),
+      )),
+    );
+    parts.push(options);
+
+    parts.push(el('div', { className: 'exam-actions' },
+      el('span', { className: 'muted small', text: 'Antworten können nach dem Fortfahren nicht geändert werden.' }),
+      el('button', {
+        className: 'btn btn-primary',
+        id: 'next-question',
+        type: 'button',
+        disabled: exam.selected === null,
+        text: exam.index === exam.questions.length - 1 ? 'Prüfung abschließen' : 'Weiter →',
+      }),
+    ));
+
+    return frag(...parts);
   }
 
   function bindExamHandlers() {
@@ -447,15 +490,25 @@
     if (!row || !exam) return;
     let questionTimer = row.querySelector('[data-question-timer]');
     if (exam.questionTime !== null) {
-      const label = `${icons.clock} Frage ${exam.questionTime}s`;
       if (!questionTimer) {
-        row.insertAdjacentHTML('afterbegin', `<div class="timer" data-question-timer>${label}</div>`);
+        questionTimer = timerLabel('question', `Frage ${exam.questionTime}s`);
+        row.prepend(questionTimer);
       } else {
-        questionTimer.innerHTML = label;
+        setTimerContent(questionTimer, 'Frage ', `${exam.questionTime}s`);
       }
     } else if (questionTimer) {
       questionTimer.remove();
     }
+  }
+
+  function buildBlockScreen() {
+    return el('div', { className: 'block-screen' },
+      el('div', { className: 'block-screen-inner' },
+        icon('shield'),
+        el('h2', { text: 'Prüfungsansicht gesperrt' }),
+        el('p', {}, 'Der Bildschirminhalt wurde zum Schutz der Prüfung ausgeblendet.', el('br'), 'Kehren Sie zur Prüfungsansicht zurück.'),
+      ),
+    );
   }
 
   function updateExamBlockScreen() {
@@ -463,9 +516,7 @@
     if (!shell) return;
     const existing = shell.querySelector('.block-screen');
     if (state.blocked) {
-      if (!existing) {
-        shell.insertAdjacentHTML('beforeend', `<div class="block-screen"><div class="block-screen-inner">${icons.shield}<h2>Prüfungsansicht gesperrt</h2><p>Der Bildschirminhalt wurde zum Schutz der Prüfung ausgeblendet.<br>Kehren Sie zur Prüfungsansicht zurück.</p></div></div>`);
-      }
+      if (!existing) shell.append(buildBlockScreen());
     } else {
       existing?.remove();
     }
@@ -479,7 +530,7 @@
     if (!card) { renderExam(true); return; }
 
     const applyContent = () => {
-      card.innerHTML = examQuestionBodyHTML(question, exam);
+      mount(card, buildExamQuestionBody(question, exam));
       bindExamHandlers();
       updateExamTimers();
       updateQuestionTimerVisibility();
@@ -514,20 +565,36 @@
     const question = exam.questions[exam.index];
     const progress = ((exam.index + 1) / exam.questions.length) * 100;
 
-    root.innerHTML = `<div class="exam-shell">
-      <header class="exam-header"><div class="exam-header-inner">
-        ${logoBrand(`Verfahrensnummer: ${state.candidate?.candidateId || '–'}`)}
-        <div class="timer-row">
-          ${exam.questionTime !== null ? `<div class="timer" data-question-timer>${icons.clock} Frage ${exam.questionTime}s</div>` : ''}
-          <div class="timer ${exam.globalTime < 300 ? 'danger' : ''}" data-global-timer>${icons.clock} Restzeit ${formatTime(exam.globalTime)}</div>
-        </div>
-      </div></header>
-      <div class="progress-label" data-progress-label>Frage ${exam.index + 1} von ${exam.questions.length}</div>
-      <div class="progress-wrap"><div class="progress" data-progress style="width:${progress}%"></div></div>
-      <main class="exam-main"><section class="card question-card" data-question-card>${examQuestionBodyHTML(question, exam)}</section></main>
-      ${state.blocked ? `<div class="block-screen"><div class="block-screen-inner">${icons.shield}<h2>Prüfungsansicht gesperrt</h2><p>Der Bildschirminhalt wurde zum Schutz der Prüfung ausgeblendet.<br>Kehren Sie zur Prüfungsansicht zurück.</p></div></div>` : ''}
-    </div>`;
+    const globalTimer = timerLabel('global', `Restzeit ${formatTime(exam.globalTime)}`);
+    if (exam.globalTime < 300) globalTimer.classList.add('danger');
 
+    const timerRowChildren = [];
+    if (exam.questionTime !== null) {
+      timerRowChildren.push(timerLabel('question', `Frage ${exam.questionTime}s`));
+    }
+    timerRowChildren.push(globalTimer);
+
+    const examShell = el('div', { className: 'exam-shell' },
+      el('header', { className: 'exam-header' },
+        el('div', { className: 'exam-header-inner' },
+          buildLogoBrand(`Verfahrensnummer: ${state.candidate?.candidateId || '–'}`),
+          el('div', { className: 'timer-row' }, ...timerRowChildren),
+        ),
+      ),
+      el('div', { className: 'progress-label', dataset: { progressLabel: '' }, text: `Frage ${exam.index + 1} von ${exam.questions.length}` }),
+      el('div', { className: 'progress-wrap' },
+        el('div', { className: 'progress', dataset: { progress: '' }, style: { width: `${progress}%` } }),
+      ),
+      el('main', { className: 'exam-main' },
+        el('section', { className: 'card question-card', dataset: { questionCard: '' } },
+          buildExamQuestionBody(question, exam),
+        ),
+      ),
+    );
+
+    if (state.blocked) examShell.append(buildBlockScreen());
+
+    mount(root, examShell);
     bindExamHandlers();
   }
 
@@ -581,48 +648,70 @@
 
   function renderSaving() {
     const hasError = Boolean(state.error);
-    root.innerHTML = `<div class="shell login-page">
-      <div class="status-page">
-        <div class="status-card card">
-          ${logoBrand('Prüfung wird übermittelt')}
-          <div class="login-divider"></div>
-          ${hasError ? '' : '<div class="spinner"></div>'}
-          <h2>${hasError ? 'Speichern fehlgeschlagen' : 'Abgabe wird gespeichert'}</h2>
-          <p class="muted">Die Antworten und Prüfungsdaten werden sicher in der Prüfungsakte gespeichert.</p>
-          ${hasError ? `<div class="notice notice-error">${icons.info}<span>${h(state.error)}</span></div><button class="btn btn-primary" id="retry-save" style="margin-top:16px">Erneut speichern</button>` : `
-            <div class="saving-steps">
-              <div class="saving-step done"><span class="step-dot"></span>Antworten erfasst</div>
-              <div class="saving-step active"><span class="step-dot"></span>Übermittlung an Server</div>
-              <div class="saving-step"><span class="step-dot"></span>Bestätigung erhalten</div>
-            </div>
-            <div class="notice notice-info" style="margin-top:20px">${icons.info}<span>Bitte die Anwendung nicht schließen.</span></div>`}
-        </div>
-      </div>
-    </div>`;
+    const statusChildren = [
+      buildLogoBrand('Prüfung wird übermittelt'),
+      el('div', { className: 'login-divider' }),
+    ];
+
+    if (hasError) {
+      statusChildren.push(
+        el('h2', { text: 'Speichern fehlgeschlagen' }),
+        el('p', { className: 'muted', text: 'Die Antworten und Prüfungsdaten werden sicher in der Prüfungsakte gespeichert.' }),
+        notice('error', icon('info'), el('span', { text: state.error })),
+        el('button', { className: 'btn btn-primary', id: 'retry-save', type: 'button', style: { marginTop: '16px' }, text: 'Erneut speichern' }),
+      );
+    } else {
+      statusChildren.push(
+        el('div', { className: 'spinner' }),
+        el('h2', { text: 'Abgabe wird gespeichert' }),
+        el('p', { className: 'muted', text: 'Die Antworten und Prüfungsdaten werden sicher in der Prüfungsakte gespeichert.' }),
+        el('div', { className: 'saving-steps' },
+          el('div', { className: 'saving-step done' }, el('span', { className: 'step-dot' }), 'Antworten erfasst'),
+          el('div', { className: 'saving-step active' }, el('span', { className: 'step-dot' }), 'Übermittlung an Server'),
+          el('div', { className: 'saving-step' }, el('span', { className: 'step-dot' }), 'Bestätigung erhalten'),
+        ),
+        el('div', { className: 'notice notice-info', style: { marginTop: '20px' } }, icon('info'), el('span', { text: 'Bitte die Anwendung nicht schließen.' })),
+      );
+    }
+
+    mount(root,
+      el('div', { className: 'shell login-page' },
+        el('div', { className: 'status-page' },
+          el('div', { className: 'status-card card' }, ...statusChildren),
+        ),
+      ),
+    );
     document.getElementById('retry-save')?.addEventListener('click', submitPendingRecord);
   }
 
   function renderResult() {
     const receipt = state.result;
     if (!receipt) { state.view = 'home'; render(); return; }
-    root.innerHTML = `<div class="shell"><div class="wrap animate-in">
-      ${topbar('')}
-      <section class="card result-card">
-        <div class="eyebrow">Prüfung abgeschlossen</div>
-        <h2>Abgabe erfolgreich</h2>
-        ${icons.check}
-        <p>Ihre Prüfung wurde gespeichert und an das Personalwesen zur internen Prüfung übermittelt.</p>
-        <div class="notice notice-info">${icons.info}<span>Das Ergebnis sowie eine mögliche Zertifikatsausstellung werden ausschließlich im Admin-Dashboard bearbeitet und in dieser Ansicht nicht angezeigt.</span></div>
-        <div class="detail-grid" style="margin-top:24px;text-align:left">
-          <div class="detail-box"><div class="small muted">Bewerber</div><strong>${h(receipt.candidateName)}</strong></div>
-          <div class="detail-box"><div class="small muted">Verfahrensnummer</div><strong>${h(receipt.candidateId)}</strong></div>
-          <div class="detail-box"><div class="small muted">Abgegeben am</div><strong>${formatDate(receipt.completedAt, true)}</strong></div>
-          <div class="detail-box"><div class="small muted">Status</div><strong>Beim Personalwesen eingegangen</strong></div>
-        </div>
-        ${noticeHtml()}
-        <div class="inline-actions" style="justify-content:center;margin-top:24px"><button class="btn btn-primary" id="result-home">Zur Startseite</button></div>
-      </section>
-    </div></div>`;
+
+    mount(root,
+      el('div', { className: 'shell' },
+        el('div', { className: 'wrap animate-in' },
+          buildTopbar(),
+          el('section', { className: 'card result-card' },
+            el('div', { className: 'eyebrow', text: 'Prüfung abgeschlossen' }),
+            el('h2', { text: 'Abgabe erfolgreich' }),
+            icon('check'),
+            el('p', { text: 'Ihre Prüfung wurde gespeichert und an das Personalwesen zur internen Prüfung übermittelt.' }),
+            notice('info', icon('info'), el('span', { text: 'Das Ergebnis sowie eine mögliche Zertifikatsausstellung werden ausschließlich im Admin-Dashboard bearbeitet und in dieser Ansicht nicht angezeigt.' })),
+            el('div', { className: 'detail-grid', style: { marginTop: '24px', textAlign: 'left' } },
+              el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Bewerber' }), el('strong', { text: receipt.candidateName })),
+              el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Verfahrensnummer' }), el('strong', { text: receipt.candidateId })),
+              el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Abgegeben am' }), el('strong', { text: formatDate(receipt.completedAt, true) })),
+              el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Status' }), el('strong', { text: 'Beim Personalwesen eingegangen' })),
+            ),
+            buildNotices(),
+            el('div', { className: 'inline-actions', style: { justifyContent: 'center', marginTop: '24px' } },
+              el('button', { className: 'btn btn-primary', id: 'result-home', type: 'button', text: 'Zur Startseite' }),
+            ),
+          ),
+        ),
+      ),
+    );
     document.getElementById('result-home').onclick = () => { state.view = 'home'; state.candidate = null; state.result = null; state.error = ''; state.info = ''; render(); };
   }
 
@@ -653,27 +742,189 @@
     adminPoll = null;
   }
 
+  function buildRecordList() {
+    const term = state.search.trim().toLowerCase();
+    const filtered = state.records.filter((record) => !term || [record.candidateName, record.candidateId, record.certificateNumber].some((value) => String(value || '').toLowerCase().includes(term)));
+    const searchInput = el('input', { className: 'input', id: 'record-search', value: state.search, placeholder: 'Akten durchsuchen' });
+    const items = filtered.map((record) => {
+      const active = record.recordId === state.selectedRecordId;
+      const isPassed = record.evaluation?.finalDecision === 'BESTANDEN';
+      return el('div', { className: `record-item${active ? ' active' : ''}` },
+        el('button', { dataset: { record: record.recordId } },
+          el('strong', { text: record.candidateName }),
+          el('div', { className: 'small muted', text: record.candidateId }),
+          el('div', { style: { marginTop: '7px' } },
+            el('span', { className: `badge ${isPassed ? 'badge-pass' : 'badge-fail'}`, text: isPassed ? 'Bestanden' : 'Nicht bestanden' }),
+          ),
+        ),
+      );
+    });
+
+    return el('div', {},
+      el('div', { className: 'field' }, searchInput),
+      el('div', { className: 'record-list' },
+        items.length ? frag(...items) : el('div', { className: 'empty', text: 'Keine Akten gefunden.' }),
+      ),
+    );
+  }
+
+  function buildRecordDetail() {
+    const record = state.records.find((item) => item.recordId === state.selectedRecordId);
+    if (!record) return el('div', { className: 'empty', text: 'Noch keine Prüfungsakte vorhanden.' });
+
+    const isPassed = record.evaluation?.finalDecision === 'BESTANDEN';
+    const scoreRows = Object.values(record.evaluation?.categoryScores || {}).map((score) => el('tr', {},
+      el('td', { text: categoryLabel(score.category) }),
+      el('td', { text: `${score.score}/${score.maxScore}` }),
+      el('td', { text: `${Number(score.percentage || 0).toFixed(0)}%` }),
+      el('td', { text: score.evaluation }),
+    ));
+
+    const certificateBox = record.certificateNumber
+      ? el('div', { className: 'notice notice-success', style: { marginTop: '16px' } },
+        el('strong', { text: 'Zertifikat ausgestellt' }),
+        el('br'),
+        `Nummer: ${record.certificateNumber}`,
+        el('br'),
+        el('span', { className: 'small', text: `Ausgestellt am ${formatDate(record.certificateIssuedAt, true)} durch ${record.certificateIssuedBy || '–'}` }),
+      )
+      : el('div', { className: 'notice notice-info', style: { marginTop: '16px' }, text: isPassed ? 'Die Prüfung ist bestanden. Das Zertifikat kann jetzt durch das Personalwesen ausgestellt werden.' : 'Für eine nicht bestandene Prüfung kann kein Zertifikat ausgestellt werden.' });
+
+    const certificateButton = record.certificateNumber
+      ? el('button', { className: 'btn btn-success', type: 'button', disabled: true, text: 'Zertifikat ausgestellt' })
+      : el('button', { className: 'btn btn-success', id: 'issue-certificate', type: 'button', disabled: !isPassed, text: 'Zertifikat ausstellen' });
+
+    const deleteControls = state.deleteConfirmRecordId === record.recordId
+      ? el('div', { className: 'notice notice-error', style: { marginTop: '16px' } },
+        el('strong', { text: 'Akte endgültig löschen?' }),
+        el('br'),
+        'Dieser Vorgang kann nicht rückgängig gemacht werden.',
+        el('div', { className: 'inline-actions', style: { marginTop: '12px' } },
+          el('button', { className: 'btn btn-danger', id: 'confirm-delete-record', type: 'button', text: 'Löschen bestätigen' }),
+          el('button', { className: 'btn btn-secondary', id: 'cancel-delete-record', type: 'button', text: 'Abbrechen' }),
+        ),
+      )
+      : null;
+
+    const clearControls = state.clearRecordsConfirm
+      ? el('div', { className: 'notice notice-error', style: { marginTop: '16px' } },
+        el('strong', { text: 'Alle Prüfungsakten endgültig löschen?' }),
+        el('div', { className: 'inline-actions', style: { marginTop: '12px' } },
+          el('button', { className: 'btn btn-danger', id: 'confirm-clear-records', type: 'button', text: 'Alle löschen bestätigen' }),
+          el('button', { className: 'btn btn-secondary', id: 'cancel-clear-records', type: 'button', text: 'Abbrechen' }),
+        ),
+      )
+      : null;
+
+    return el('div', {},
+      el('div', { className: 'eyebrow', text: 'Prüfungsakte' }),
+      el('h2', { text: record.candidateName }),
+      el('div', { className: 'detail-grid' },
+        el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Verfahrensnummer' }), el('strong', { text: record.candidateId })),
+        el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Geburtsdatum' }), el('strong', { text: formatDate(record.candidateBirthDate) })),
+        el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Abschluss' }), el('strong', { text: formatDate(record.completedAt, true) })),
+        el('div', { className: 'detail-box' },
+          el('div', { className: 'small muted', text: 'Gesamtergebnis' }),
+          el('strong', { className: isPassed ? 'result-pass' : 'result-fail', text: `${Number(record.evaluation?.totalPercentage || 0).toFixed(1)}% · ${record.evaluation?.decisionLabel || ''}` }),
+        ),
+      ),
+      el('table', { className: 'score-table' },
+        el('thead', {},
+          el('tr', {},
+            el('th', { text: 'Bereich' }),
+            el('th', { text: 'Punkte' }),
+            el('th', { text: 'Quote' }),
+            el('th', { text: 'Bewertung' }),
+          ),
+        ),
+        el('tbody', {}, ...scoreRows),
+      ),
+      el('div', { className: 'notice notice-info', style: { marginTop: '16px' }, text: record.evaluation?.decisionReason || '' }),
+      el('p', { className: 'small muted', text: `Sicherheitsereignisse: ${normalizeArray(record.securityIncidents).length} · Bearbeitungsstatus: ${record.reviewStatus || 'AUSSTEHEND'}` }),
+      certificateBox,
+      deleteControls,
+      clearControls,
+      el('div', { className: 'inline-actions', style: { marginTop: '16px' } },
+        certificateButton,
+        el('button', { className: 'btn btn-danger', id: 'delete-record', type: 'button', text: 'Akte löschen' }),
+        el('button', { className: 'btn btn-danger', id: 'clear-records', type: 'button', text: 'Alle Akten löschen' }),
+        el('button', { className: 'btn btn-secondary', id: 'refresh-admin', type: 'button', text: 'Aktualisieren' }),
+      ),
+    );
+  }
+
+  function buildCodeList() {
+    const items = state.codes.map((code) => el('div', { className: 'code-item' },
+      el('span', { className: 'code-value', text: code.code }),
+      el('div', { className: 'small', text: `${code.candidateName} · ${formatDate(code.candidateBirthDate)}` }),
+      el('div', { className: 'small muted', text: code.used ? `Verwendet von ${code.usedBy || '–'}` : '● Verfügbar' }),
+      el('button', { className: 'btn btn-danger', style: { marginTop: '4px', padding: '7px 12px', fontSize: '0.8125rem' }, dataset: { deleteCode: code.code }, text: 'Löschen' }),
+    ));
+
+    return el('div', { className: 'code-list' },
+      items.length ? frag(...items) : el('div', { className: 'empty', text: 'Noch keine Zugangscodes.' }),
+    );
+  }
+
+  function buildCodeManager() {
+    const openCount = state.codes.filter((code) => !code.used).length;
+    const usedCount = state.codes.filter((code) => code.used).length;
+    return el('div', {},
+      el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
+      el('h2', { text: 'Einmaligen Zugangscode erstellen' }),
+      el('p', { className: 'muted', text: 'Der Code ist an den eingegebenen Namen und das Geburtsdatum gebunden.' }),
+      el('form', { id: 'create-code-form' },
+        el('div', { className: 'code-row' },
+          field('Name des Bewerbers', el('input', { className: 'input', id: 'new-code-name', placeholder: 'Max Mustermann', required: true })),
+          field('Geburtsdatum', el('input', { className: 'input', id: 'new-code-birth', type: 'date', required: true })),
+          el('button', { className: 'btn btn-primary', type: 'submit', style: { marginBottom: '16px' } }, icon('key'), ' Code erstellen'),
+        ),
+      ),
+      notice('info', icon('info'), el('span', { text: `Offene Codes: ${openCount} · Bereits verwendet: ${usedCount}` })),
+    );
+  }
+
   function renderAdmin() {
     const passed = state.records.filter((record) => record.evaluation?.finalDecision === 'BESTANDEN').length;
-    const failed = state.records.length - passed;
     const openCodes = state.codes.filter((code) => !code.used).length;
-    root.innerHTML = `<div class="shell"><div class="wrap animate-in">
-      ${topbar(`<div class="staff-badge"><div class="staff-avatar">${staffInitials(state.staffName)}</div><div><strong>${h(state.staffName)}</strong><br><span class="small muted">${h(state.staffRank)}</span></div></div><button class="btn btn-secondary" id="logout">${icons.logout} Abmelden</button>`)}
-      ${noticeHtml()}
-      <div class="admin-layout">
-        <aside class="card sidebar">
-          <div class="eyebrow">Verwaltung</div><h2>Personalwesen</h2>
-          <div class="admin-stats">
-            <div class="admin-stat"><strong>${state.records.length}</strong><span>Akten</span></div>
-            <div class="admin-stat"><strong>${passed}</strong><span>Bestanden</span></div>
-            <div class="admin-stat"><strong>${openCodes}</strong><span>Codes</span></div>
-          </div>
-          <div class="tabs"><button class="btn tab ${state.adminTab === 'records' ? 'active' : 'btn-secondary'}" data-tab="records">Prüfungsakten</button><button class="btn tab ${state.adminTab === 'codes' ? 'active' : 'btn-secondary'}" data-tab="codes">Zugangscodes</button></div>
-          ${state.adminTab === 'records' ? renderRecordList() : renderCodeList()}
-        </aside>
-        <main class="card content">${state.adminTab === 'records' ? renderRecordDetail() : renderCodeManager()}</main>
-      </div>
-    </div></div>`;
+
+    const staffBadge = el('div', { className: 'staff-badge' },
+      el('div', { className: 'staff-avatar', text: staffInitials(state.staffName) }),
+      el('div', {},
+        el('strong', { text: state.staffName }),
+        el('br'),
+        el('span', { className: 'small muted', text: state.staffRank }),
+      ),
+    );
+    const logoutBtn = el('button', { className: 'btn btn-secondary', id: 'logout', type: 'button' }, icon('logout'), ' Abmelden');
+
+    mount(root,
+      el('div', { className: 'shell' },
+        el('div', { className: 'wrap animate-in' },
+          buildTopbar(frag(staffBadge, logoutBtn)),
+          buildNotices(),
+          el('div', { className: 'admin-layout' },
+            el('aside', { className: 'card sidebar' },
+              el('div', { className: 'eyebrow', text: 'Verwaltung' }),
+              el('h2', { text: 'Personalwesen' }),
+              el('div', { className: 'admin-stats' },
+                el('div', { className: 'admin-stat' }, el('strong', { text: String(state.records.length) }), el('span', { text: 'Akten' })),
+                el('div', { className: 'admin-stat' }, el('strong', { text: String(passed) }), el('span', { text: 'Bestanden' })),
+                el('div', { className: 'admin-stat' }, el('strong', { text: String(openCodes) }), el('span', { text: 'Codes' })),
+              ),
+              el('div', { className: 'tabs' },
+                el('button', { className: `btn tab${state.adminTab === 'records' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'records' }, text: 'Prüfungsakten' }),
+                el('button', { className: `btn tab${state.adminTab === 'codes' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'codes' }, text: 'Zugangscodes' }),
+              ),
+              state.adminTab === 'records' ? buildRecordList() : buildCodeList(),
+            ),
+            el('main', { className: 'card content' },
+              state.adminTab === 'records' ? buildRecordDetail() : buildCodeManager(),
+            ),
+          ),
+        ),
+      ),
+    );
 
     document.getElementById('logout').onclick = logout;
     root.querySelectorAll('[data-tab]').forEach((button) => button.onclick = () => { state.adminTab = button.dataset.tab; state.error = ''; state.info = ''; render(); });
@@ -689,65 +940,6 @@
     document.getElementById('cancel-clear-records')?.addEventListener('click', cancelClearRecords);
     document.getElementById('issue-certificate')?.addEventListener('click', issueCertificate);
     document.getElementById('refresh-admin')?.addEventListener('click', async () => { await refreshAdminData(); render(); });
-  }
-
-  function renderRecordList() {
-    const term = state.search.trim().toLowerCase();
-    const filtered = state.records.filter((record) => !term || [record.candidateName, record.candidateId, record.certificateNumber].some((value) => String(value || '').toLowerCase().includes(term)));
-    const items = filtered.map((record) => {
-      const active = record.recordId === state.selectedRecordId;
-      const isPassed = record.evaluation?.finalDecision === 'BESTANDEN';
-      return `<div class="record-item ${active ? 'active' : ''}"><button data-record="${h(record.recordId)}"><strong>${h(record.candidateName)}</strong><div class="small muted">${h(record.candidateId)}</div><div style="margin-top:7px"><span class="badge ${isPassed ? 'badge-pass' : 'badge-fail'}">${isPassed ? 'Bestanden' : 'Nicht bestanden'}</span></div></button></div>`;
-    }).join('');
-    return `<div class="field"><input class="input" id="record-search" value="${h(state.search)}" placeholder="Akten durchsuchen"></div><div class="record-list">${items || '<div class="empty">Keine Akten gefunden.</div>'}</div>`;
-  }
-
-  function renderRecordDetail() {
-    const record = state.records.find((item) => item.recordId === state.selectedRecordId);
-    if (!record) return '<div class="empty">Noch keine Prüfungsakte vorhanden.</div>';
-    const isPassed = record.evaluation?.finalDecision === 'BESTANDEN';
-    const scores = Object.values(record.evaluation?.categoryScores || {}).map((score) => `<tr><td>${h(categoryLabel(score.category))}</td><td>${score.score}/${score.maxScore}</td><td>${Number(score.percentage || 0).toFixed(0)}%</td><td>${h(score.evaluation)}</td></tr>`).join('');
-    const certificateBox = record.certificateNumber
-      ? `<div class="notice notice-success" style="margin-top:16px"><strong>Zertifikat ausgestellt</strong><br>Nummer: ${h(record.certificateNumber)}<br><span class="small">Ausgestellt am ${formatDate(record.certificateIssuedAt, true)} durch ${h(record.certificateIssuedBy || '–')}</span></div>`
-      : `<div class="notice notice-info" style="margin-top:16px">${isPassed ? 'Die Prüfung ist bestanden. Das Zertifikat kann jetzt durch das Personalwesen ausgestellt werden.' : 'Für eine nicht bestandene Prüfung kann kein Zertifikat ausgestellt werden.'}</div>`;
-    const certificateButton = record.certificateNumber
-      ? '<button class="btn btn-success" type="button" disabled>Zertifikat ausgestellt</button>'
-      : `<button class="btn btn-success" id="issue-certificate" type="button" ${isPassed ? '' : 'disabled'}>Zertifikat ausstellen</button>`;
-    const deleteControls = state.deleteConfirmRecordId === record.recordId
-      ? `<div class="notice notice-error" style="margin-top:16px"><strong>Akte endgültig löschen?</strong><br>Dieser Vorgang kann nicht rückgängig gemacht werden.<div class="inline-actions" style="margin-top:12px"><button class="btn btn-danger" id="confirm-delete-record" type="button">Löschen bestätigen</button><button class="btn btn-secondary" id="cancel-delete-record" type="button">Abbrechen</button></div></div>`
-      : '';
-    const clearControls = state.clearRecordsConfirm
-      ? `<div class="notice notice-error" style="margin-top:16px"><strong>Alle Prüfungsakten endgültig löschen?</strong><div class="inline-actions" style="margin-top:12px"><button class="btn btn-danger" id="confirm-clear-records" type="button">Alle löschen bestätigen</button><button class="btn btn-secondary" id="cancel-clear-records" type="button">Abbrechen</button></div></div>`
-      : '';
-    return `<div class="eyebrow">Prüfungsakte</div><h2>${h(record.candidateName)}</h2>
-      <div class="detail-grid">
-        <div class="detail-box"><div class="small muted">Verfahrensnummer</div><strong>${h(record.candidateId)}</strong></div>
-        <div class="detail-box"><div class="small muted">Geburtsdatum</div><strong>${formatDate(record.candidateBirthDate)}</strong></div>
-        <div class="detail-box"><div class="small muted">Abschluss</div><strong>${formatDate(record.completedAt, true)}</strong></div>
-        <div class="detail-box"><div class="small muted">Gesamtergebnis</div><strong class="${isPassed ? 'result-pass' : 'result-fail'}">${Number(record.evaluation?.totalPercentage || 0).toFixed(1)}% · ${h(record.evaluation?.decisionLabel)}</strong></div>
-      </div>
-      <table class="score-table"><thead><tr><th>Bereich</th><th>Punkte</th><th>Quote</th><th>Bewertung</th></tr></thead><tbody>${scores}</tbody></table>
-      <div class="notice notice-info" style="margin-top:16px">${h(record.evaluation?.decisionReason || '')}</div>
-      <p class="small muted">Sicherheitsereignisse: ${normalizeArray(record.securityIncidents).length} · Bearbeitungsstatus: ${h(record.reviewStatus || 'AUSSTEHEND')}</p>
-      ${certificateBox}
-      ${deleteControls}${clearControls}
-      <div class="inline-actions" style="margin-top:16px">${certificateButton}<button class="btn btn-danger" id="delete-record" type="button">Akte löschen</button><button class="btn btn-danger" id="clear-records" type="button">Alle Akten löschen</button><button class="btn btn-secondary" id="refresh-admin" type="button">Aktualisieren</button></div>`;
-  }
-
-  function renderCodeList() {
-    const items = state.codes.map((code) => `<div class="code-item">
-      <span class="code-value">${h(code.code)}</span>
-      <div class="small">${h(code.candidateName)} · ${formatDate(code.candidateBirthDate)}</div>
-      <div class="small muted">${code.used ? `Verwendet von ${h(code.usedBy || '–')}` : '● Verfügbar'}</div>
-      <button class="btn btn-danger" style="margin-top:4px;padding:7px 12px;font-size:0.8125rem" data-delete-code="${h(code.code)}">Löschen</button>
-    </div>`).join('');
-    return `<div class="code-list">${items || '<div class="empty">Noch keine Zugangscodes.</div>'}</div>`;
-  }
-
-  function renderCodeManager() {
-    return `<div class="eyebrow">Bewerberzugang</div><h2>Einmaligen Zugangscode erstellen</h2><p class="muted">Der Code ist an den eingegebenen Namen und das Geburtsdatum gebunden.</p>
-      <form id="create-code-form"><div class="code-row"><div class="field"><label>Name des Bewerbers</label><input class="input" id="new-code-name" placeholder="Max Mustermann" required></div><div class="field"><label>Geburtsdatum</label><input class="input" id="new-code-birth" type="date" required></div><button class="btn btn-primary" type="submit" style="margin-bottom:16px">${icons.key} Code erstellen</button></div></form>
-      <div class="notice notice-info">${icons.info}<span>Offene Codes: ${state.codes.filter((code) => !code.used).length} · Bereits verwendet: ${state.codes.filter((code) => code.used).length}</span></div>`;
   }
 
   async function createCode(event) {
