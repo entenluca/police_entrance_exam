@@ -30,15 +30,44 @@ Config.StaffAccounts = {
         username = 'admin',
         password = 'DEIN_SICHERES_PASSWORT',
         displayName = 'Personalwesen',
-        rank = 'Administration'
+        rank = 'Polizeioberrat',
+        jobGrade = 10
     }
 }
 ```
+
+In `config.lua` festlegen, ab welchem Job-Grade erweiterte Einstellungen verfügbar sind:
+
+```lua
+Config.SettingsAccessFromGrade = 10
+```
+
+Nur Mitarbeiter mit diesem oder einem höheren Job-Grade können:
+
+- das eigene Passwort ändern,
+- neue Mitarbeiterzugänge erstellen,
+- bestehende Mitarbeiterzugänge verwalten.
 
 Standardzugang der ausgelieferten Version:
 
 - Benutzer: `admin`
 - Passwort: `PoliceExam2026!`
+- Job-Grade: `10` (Zugang zu den erweiterten Einstellungen)
+
+Mitarbeiterzugänge werden zur Laufzeit in `data/staff_accounts.json` gespeichert (beim ersten Start aus `Config.StaffAccounts` übernommen).
+
+## Bewertungsskala
+
+Für Bereichs- und Gesamtbewertungen werden ausschließlich diese Stufen verwendet:
+
+- Ungenügend
+- Mangelhaft
+- Ausreichend
+- Befriedigend
+- Gut
+- Sehr gut
+
+Die Bewertung erscheint im Admin-Dashboard und auf ausgestellten Zertifikaten.
 
 ## Verwendung
 

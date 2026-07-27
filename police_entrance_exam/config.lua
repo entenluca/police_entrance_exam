@@ -24,3 +24,8 @@ Config.Exam = {
     -- Ab dieser Gesamtquote gilt die Bewertung „sehr geeignet“
     ExcellentPercentage = 88,
 }
+
+-- Ab diesem Job-Grade erhalten Mitarbeiter Zugriff auf erweiterte Einstellungen
+-- (eigenes Passwort ändern, Mitarbeiterzugänge erstellen und verwalten).
+-- Beispiel höherer Dienst ab Polizeioberrat: SettingsAccessFromGrade = 10
+Config.SettingsAccessFromGrade = 10
