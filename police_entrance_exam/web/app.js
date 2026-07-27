@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const APP_BUILD = '1.4.0';
+  const APP_BUILD = '1.4.1';
   console.info(`[police_entrance_exam] UI Build ${APP_BUILD} geladen`);
 
   const { el, mount, frag, setMultiline, field, btn, notice, icon, timerLabel, setTimerContent } = window.PoliceExamDOM;
@@ -556,49 +556,70 @@
   }
 
   function renderHome() {
-    const openLoginBtn = el('button', { className: 'btn btn-secondary', id: 'open-login', type: 'button' }, icon('lock'), ` ${state.branding.staffLabel}`);
+    const openLoginBtn = el('button', { className: 'btn btn-secondary btn-staff-login', id: 'open-login', type: 'button' },
+      icon('lock'),
+      ` ${state.branding.staffLabel} Login`,
+    );
     openLoginBtn.addEventListener('click', () => { state.view = 'login'; state.error = ''; render(); });
 
     const nameInput = el('input', { className: 'input', id: 'candidate-name', autocomplete: 'off', placeholder: 'Max Mustermann', required: true });
-    const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true });
-    const codeInput = el('input', { className: 'input code-input', id: 'candidate-code', maxlength: '9', placeholder: 'AB3K-7HNP', required: true });
+    const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true, placeholder: 'tt.mm.jjjj' });
+    const codeInput = el('input', { className: 'input code-input', id: 'candidate-code', maxlength: '9', placeholder: 'z. B. AB3K-7HNP', required: true });
     codeInput.addEventListener('input', () => {
       let value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
       if (value.length > 4) value = `${value.slice(0, 4)}-${value.slice(4)}`;
       codeInput.value = value;
     });
 
-    const candidateForm = el('form', { id: 'candidate-form' },
+    const codeField = el('div', { className: 'field' },
+      el('label', { text: 'Zugangscode' }),
+      el('div', { className: 'input-with-icon' },
+        el('span', { className: 'input-icon', 'aria-hidden': 'true' }, icon('key')),
+        codeInput,
+      ),
+      el('p', { className: 'field-hint', text: `Der Code wird vom ${state.branding.staffLabel} der Dienststelle bereitgestellt.` }),
+    );
+
+    const securityNotice = el('div', { className: 'notice notice-info home-security-notice' },
+      icon('shieldSm'),
+      el('span', { text: 'Textauswahl, Rechtsklick und Kopieren sind deaktiviert. Screenshots oder Verlassen der Prüfungsansicht werden als Sicherheitsverstoß protokolliert.' }),
+    );
+
+    const candidateForm = el('form', { id: 'candidate-form', className: 'candidate-form' },
       field('Vollständiger Name', nameInput),
       field('Geburtsdatum', birthInput),
-      field('Zugangscode', codeInput),
-      el('div', { style: { height: '12px' } }),
-      buildNotices(),
-      el('button', { className: 'btn btn-primary', style: { width: '100%', marginTop: '16px' }, type: 'submit', text: 'Auswahlprüfung starten →' }),
+      codeField,
+      el('div', { dataset: { notices: '' } }, buildNotices()),
+      securityNotice,
+      el('button', { className: 'btn btn-primary btn-start-exam', type: 'submit', text: 'Auswahlprüfung starten →' }),
     );
     candidateForm.addEventListener('submit', handleCandidateSubmit);
 
     mountView(
-      el('div', { className: 'shell' },
+      el('div', { className: 'shell home-shell' },
         el('div', { className: 'wrap' },
           buildTopbar(openLoginBtn),
           el('section', { className: 'grid-home' },
             el('div', { className: 'card hero' },
               el('div', { className: 'hero-pattern' }),
-              el('span', { className: 'pill' }, el('span', { className: 'pill-dot' }), ' Digitaler Eignungstest'),
-              el('h2', { text: 'Behördliches Auswahlverfahren für Bewerberinnen und Bewerber' }),
-              el('p', { text: `Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem ${state.branding.staffLabel} zur Verfügung.` }),
+              el('div', { className: 'hero-watermark', 'aria-hidden': 'true' },
+                el('img', { src: state.branding.logoUrl, alt: '' }),
+              ),
+              el('div', { className: 'hero-body' },
+                el('span', { className: 'pill' }, icon('document'), ' Digitaler Eignungstest'),
+                el('h2', { text: 'Behördliches Auswahlverfahren für Bewerberinnen und Bewerber.' }),
+                el('p', { text: `Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem ${state.branding.staffLabel} zur Verfügung.` }),
+              ),
               el('div', { className: 'stat-grid' },
                 el('div', { className: 'stat' }, el('span', { text: 'Dauer' }), el('strong', { text: '25 Min.' })),
                 el('div', { className: 'stat' }, el('span', { text: 'Bereiche' }), el('strong', { text: '4 Module' })),
-                el('div', { className: 'stat' }, el('span', { text: 'Fragen' }), el('strong', { text: '20 Aufgaben' })),
+                el('div', { className: 'stat' }, el('span', { text: 'Navigation' }), el('strong', { text: 'Ohne Rücksprung' })),
               ),
             ),
             el('div', { className: 'card form-card' },
               el('div', { className: 'form-header-icon' }, icon('user')),
-              el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
-              el('h2', { text: 'Prüfung starten' }),
-              el('p', { className: 'muted', text: `Name, Geburtsdatum und den einmaligen Zugangscode des ${state.branding.staffLabel} eingeben.` }),
+              el('h2', { className: 'form-card-title', text: 'Bewerberzugang' }),
+              el('p', { className: 'muted form-card-lead', text: 'Name, Geburtsdatum und den einmaligen Zugangscode eingeben.' }),
               candidateForm,
             ),
           ),
