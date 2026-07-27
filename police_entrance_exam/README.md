@@ -48,6 +48,38 @@ Nur Mitarbeiter mit diesem oder einem höheren Job-Grade können:
 - neue Mitarbeiterzugänge erstellen,
 - bestehende Mitarbeiterzugänge verwalten.
 
+### Tablet nur mit bestimmtem Job öffnen
+
+In `config.lua` unter `Config.TabletAccess.Jobs` die erlaubten Jobs eintragen. Der Befehl `/policeexam`, Keybind, Export und Event prüfen den Job (ESX, QBCore/QBox oder Player-Statebag):
+
+```lua
+Config.TabletAccess = {
+    Jobs = {
+        { name = 'police', minGrade = 0 },
+    },
+    DenyMessage = 'Du hast nicht den erforderlichen Job, um das Tablet zu öffnen.',
+}
+```
+
+Leere `Jobs`-Liste = keine Job-Prüfung.
+
+### Prüfungs-Startpunkte (vector4)
+
+Bewerber starten die Prüfung an konfigurierten Orten (`E`-Taste). Format: `vector4(x, y, z, heading)`.
+
+```lua
+Config.ExamStartPoints = {
+    {
+        coords = vector4(441.18, -981.13, 30.69, 90.0),
+        label = 'Eignungsprüfung starten',
+        radius = 2.0,
+        placePlayer = true,
+    },
+}
+```
+
+Personal mit erlaubtem Job kann das Tablet weiterhin überall per Befehl öffnen. Bewerber ohne Tablet-Job nutzen die Startpunkte.
+
 Standardzugang der ausgelieferten Version:
 
 - Benutzer: `admin`
@@ -143,3 +175,10 @@ Config.DefaultKey = 'F7'
 - Ausgestellte Zertifikatsnummer, Datum und ausstellende Person werden in der Prüfungsakte gespeichert.
 - Das Löschen einzelner oder aller Akten nutzt eine FiveM-kompatible Bestätigung direkt im Dashboard statt eines Browser-Dialogs.
 - Der Server bestätigt das Löschen mit der tatsächlich entfernten Akten-ID und meldet fehlende Akten als Fehler.
+
+## Änderungen in Version 1.4.0
+
+- Tablet-Öffnung per Befehl/Keybind/Export nur noch mit konfigurierbaren Jobs (`Config.TabletAccess`).
+- Prüfungs-Startpunkte für Bewerber über `Config.ExamStartPoints` mit `vector4(x, y, z, heading)`.
+- Admin-Tabs (Prüfungsakten / Zugangscodes / Einstellungen) als klare Segment-Buttons.
+- Einstellungen-Layout neu geordnet (Passwort, Anlegen, Bearbeiten).

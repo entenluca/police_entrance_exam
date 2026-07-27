@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const APP_BUILD = '1.3.0';
+  const APP_BUILD = '1.4.0';
   console.info(`[police_entrance_exam] UI Build ${APP_BUILD} geladen`);
 
   const { el, mount, frag, setMultiline, field, btn, notice, icon, timerLabel, setTimerContent } = window.PoliceExamDOM;
@@ -1380,63 +1380,81 @@
     const selected = state.staffAccounts.find((account) => account.username === state.selectedStaffUsername);
     const gradeThreshold = state.branding.settingsAccessFromGrade ?? 10;
     const deleteControls = selected && state.deleteConfirmStaffUsername === selected.username
-      ? el('div', { className: 'notice notice-error', style: { marginTop: '16px' } },
+      ? el('div', { className: 'notice notice-error settings-delete-confirm' },
         el('strong', { text: 'Mitarbeiterzugang endgültig löschen?' }),
         el('br'),
         'Der Zugang kann danach nicht wiederhergestellt werden.',
-        el('div', { className: 'inline-actions', style: { marginTop: '12px' } },
+        el('div', { className: 'settings-actions' },
           el('button', { className: 'btn btn-danger', id: 'confirm-delete-staff', type: 'button', text: 'Löschen bestätigen' }),
           el('button', { className: 'btn btn-secondary', id: 'cancel-delete-staff', type: 'button', text: 'Abbrechen' }),
         ),
       )
       : null;
 
-    return el('div', {},
+    return el('div', { className: 'settings-panel' },
       el('div', { className: 'admin-subpage-header' },
         buildBackButton('admin-panel-back', '← Zurück'),
         el('div', { className: 'eyebrow', text: 'Erweiterte Einstellungen' }),
       ),
-      el('h2', { text: 'Einstellungen höherer Dienst' }),
-      el('p', { className: 'muted', text: `Zugriff ab Job-Grade ${gradeThreshold}. Eigenes Passwort ändern sowie Mitarbeiterzugänge erstellen und verwalten.` }),
+      el('h2', { text: 'Einstellungen' }),
+      el('p', { className: 'muted settings-intro', text: `Zugriff ab Job-Grade ${gradeThreshold}. Passwort und Mitarbeiterzugänge verwalten.` }),
 
       el('section', { className: 'settings-section' },
-        el('h3', { text: 'Eigenes Passwort ändern' }),
-        el('form', { id: 'change-password-form' },
-          el('div', { className: 'settings-grid' },
+        el('div', { className: 'settings-section-head' },
+          el('h3', { text: 'Eigenes Passwort' }),
+          el('p', { className: 'small muted', text: 'Aktuelles Passwort bestätigen und neues festlegen.' }),
+        ),
+        el('form', { id: 'change-password-form', className: 'settings-form' },
+          el('div', { className: 'settings-stack' },
             field('Aktuelles Passwort', el('input', { className: 'input', id: 'current-password', type: 'password', autocomplete: 'current-password', required: true })),
+          ),
+          el('div', { className: 'settings-grid' },
             field('Neues Passwort', el('input', { className: 'input', id: 'new-password', type: 'password', autocomplete: 'new-password', required: true, minlength: '6' })),
             field('Neues Passwort bestätigen', el('input', { className: 'input', id: 'new-password-confirm', type: 'password', autocomplete: 'new-password', required: true, minlength: '6' })),
           ),
-          el('button', { className: 'btn btn-primary', type: 'submit', text: 'Passwort speichern' }),
+          el('div', { className: 'settings-actions' },
+            el('button', { className: 'btn btn-primary', type: 'submit', text: 'Passwort speichern' }),
+          ),
         ),
       ),
 
       el('section', { className: 'settings-section' },
-        el('h3', { text: 'Neuen Mitarbeiterzugang erstellen' }),
-        el('form', { id: 'create-staff-form' },
+        el('div', { className: 'settings-section-head' },
+          el('h3', { text: 'Neuen Mitarbeiterzugang erstellen' }),
+          el('p', { className: 'small muted', text: 'Login-Daten und Job-Grade für neues Personal.' }),
+        ),
+        el('form', { id: 'create-staff-form', className: 'settings-form' },
           el('div', { className: 'settings-grid' },
             field('Benutzername', el('input', { className: 'input', id: 'new-staff-user', autocomplete: 'off', required: true })),
             field('Anzeigename', el('input', { className: 'input', id: 'new-staff-display', autocomplete: 'off', required: true })),
             field('Rang', el('input', { className: 'input', id: 'new-staff-rank', placeholder: 'z. B. Polizeioberrat', required: true })),
             field('Job-Grade', el('input', { className: 'input', id: 'new-staff-grade', type: 'number', min: '0', step: '1', value: String(gradeThreshold), required: true })),
+          ),
+          el('div', { className: 'settings-stack' },
             field('Passwort', el('input', { className: 'input', id: 'new-staff-pass', type: 'password', autocomplete: 'new-password', required: true, minlength: '6' })),
           ),
-          el('button', { className: 'btn btn-primary', type: 'submit', text: 'Zugang erstellen' }),
+          el('div', { className: 'settings-actions' },
+            el('button', { className: 'btn btn-primary', type: 'submit', text: 'Zugang erstellen' }),
+          ),
         ),
       ),
 
       el('section', { className: 'settings-section' },
-        el('h3', { text: 'Bestehenden Zugang bearbeiten' }),
+        el('div', { className: 'settings-section-head' },
+          el('h3', { text: 'Bestehenden Zugang bearbeiten' }),
+          selected
+            ? el('p', { className: 'small muted', text: `Ausgewählt: @${selected.username}` })
+            : el('p', { className: 'small muted', text: 'Links einen Mitarbeiter auswählen.' }),
+        ),
         selected
-          ? el('form', { id: 'update-staff-form' },
-            el('p', { className: 'small muted', text: `Benutzer: @${selected.username}` }),
+          ? el('form', { id: 'update-staff-form', className: 'settings-form' },
             el('div', { className: 'settings-grid' },
               field('Anzeigename', el('input', { className: 'input', id: 'edit-staff-display', value: selected.displayName || '', required: true })),
               field('Rang', el('input', { className: 'input', id: 'edit-staff-rank', value: selected.rank || '', required: true })),
               field('Job-Grade', el('input', { className: 'input', id: 'edit-staff-grade', type: 'number', min: '0', step: '1', value: String(selected.jobGrade ?? 0), required: true })),
               field('Neues Passwort (optional)', el('input', { className: 'input', id: 'edit-staff-pass', type: 'password', autocomplete: 'new-password', minlength: '6' })),
             ),
-            el('div', { className: 'inline-actions' },
+            el('div', { className: 'settings-actions' },
               el('button', { className: 'btn btn-primary', type: 'submit', text: 'Änderungen speichern' }),
               selected.username !== state.staffUsername
                 ? el('button', { className: 'btn btn-danger', id: 'delete-staff', type: 'button', text: 'Zugang löschen' })
@@ -1576,7 +1594,8 @@
 
     layout.querySelectorAll('[data-tab]').forEach((button) => {
       const active = button.dataset.tab === state.adminTab;
-      button.className = `btn tab${active ? ' active' : ' btn-secondary'}`;
+      button.className = `tab${active ? ' active' : ''}`;
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
     });
 
     const settingsTab = layout.querySelector('[data-tab="settings"]');
@@ -1615,11 +1634,32 @@
     logoutBtn.addEventListener('click', logout);
 
     const tabs = [
-      el('button', { className: `btn tab${state.adminTab === 'records' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'records' }, text: 'Prüfungsakten' }),
-      el('button', { className: `btn tab${state.adminTab === 'codes' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'codes' }, text: 'Zugangscodes' }),
+      el('button', {
+        type: 'button',
+        className: `tab${state.adminTab === 'records' ? ' active' : ''}`,
+        dataset: { tab: 'records' },
+        role: 'tab',
+        'aria-selected': state.adminTab === 'records' ? 'true' : 'false',
+        text: 'Prüfungsakten',
+      }),
+      el('button', {
+        type: 'button',
+        className: `tab${state.adminTab === 'codes' ? ' active' : ''}`,
+        dataset: { tab: 'codes' },
+        role: 'tab',
+        'aria-selected': state.adminTab === 'codes' ? 'true' : 'false',
+        text: 'Zugangscodes',
+      }),
     ];
     if (state.canManageSettings) {
-      tabs.push(el('button', { className: `btn tab${state.adminTab === 'settings' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'settings' }, text: 'Einstellungen' }));
+      tabs.push(el('button', {
+        type: 'button',
+        className: `tab${state.adminTab === 'settings' ? ' active' : ''}`,
+        dataset: { tab: 'settings' },
+        role: 'tab',
+        'aria-selected': state.adminTab === 'settings' ? 'true' : 'false',
+        text: 'Einstellungen',
+      }));
     }
 
     mountView(
@@ -1636,7 +1676,7 @@
                 el('div', { className: 'admin-stat' }, el('strong', { dataset: { adminStatPassed: '' }, text: String(passed) }), el('span', { text: 'Bestanden' })),
                 el('div', { className: 'admin-stat' }, el('strong', { dataset: { adminStatCodes: '' }, text: String(openCodes) }), el('span', { text: 'Codes' })),
               ),
-              el('div', { className: 'tabs' }, ...tabs),
+              el('div', { className: 'tabs', role: 'tablist', 'aria-label': 'Verwaltungsbereiche' }, ...tabs),
               el('div', { dataset: { adminSidebar: '' } }, adminSidebarContent()),
             ),
             el('main', { className: 'card content', dataset: { adminMain: '' } },
