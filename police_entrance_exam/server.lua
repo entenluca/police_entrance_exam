@@ -1,11 +1,13 @@
 local resourceName = GetCurrentResourceName()
 local recordsFile = 'data/records.json'
 local codesFile = 'data/access_codes.json'
+local staffFile = 'data/staff_accounts.json'
 
 local staffSessions = {}
 local candidateSessions = {}
 local records = {}
 local accessCodes = {}
+local staffAccounts = {}
 
 local function debugPrint(message)
     if Config.Debug then
@@ -83,6 +85,99 @@ local function isStaff(playerSource)
     return staffSessions[playerSource] ~= nil
 end
 
+local function getSettingsAccessFromGrade()
+    return tonumber(Config.SettingsAccessFromGrade) or 10
+end
+
+local function hasSettingsAccess(playerSource)
+    local session = staffSessions[playerSource]
+    if not session then
+        return false
+    end
+
+    return (tonumber(session.jobGrade) or 0) >= getSettingsAccessFromGrade()
+end
+
+local function normalizeStaffAccount(account)
+    if type(account) ~= 'table' then
+        return nil
+    end
+
+    local username = trim(account.username)
+    if username == '' then
+        return nil
+    end
+
+    return {
+        username = username,
+        password = tostring(account.password or ''),
+        displayName = trim(account.displayName) ~= '' and trim(account.displayName) or username,
+        rank = trim(account.rank) ~= '' and trim(account.rank) or 'Personalwesen',
+        jobGrade = tonumber(account.jobGrade) or 0
+    }
+end
+
+local function publicStaffAccount(account)
+    return {
+        username = account.username,
+        displayName = account.displayName,
+        rank = account.rank,
+        jobGrade = tonumber(account.jobGrade) or 0
+    }
+end
+
+local function findStaffIndex(username)
+    local wanted = string.lower(trim(username))
+    if wanted == '' then
+        return nil
+    end
+
+    for index, account in ipairs(staffAccounts) do
+        if string.lower(trim(account.username)) == wanted then
+            return index
+        end
+    end
+
+    return nil
+end
+
+local function saveStaffAccounts()
+    return saveArray(staffFile, staffAccounts)
+end
+
+local function seedStaffAccountsFromConfig()
+    local seeded = {}
+    for _, account in ipairs(Config.StaffAccounts or {}) do
+        local normalized = normalizeStaffAccount(account)
+        if normalized then
+            seeded[#seeded + 1] = normalized
+        end
+    end
+    return seeded
+end
+
+local function loadStaffAccounts()
+    local loaded = loadArray(staffFile)
+    if type(loaded) == 'table' and #loaded > 0 then
+        local normalizedList = {}
+        for _, account in ipairs(loaded) do
+            local normalized = normalizeStaffAccount(account)
+            if normalized then
+                normalizedList[#normalizedList + 1] = normalized
+            end
+        end
+        if #normalizedList > 0 then
+            return normalizedList
+        end
+    end
+
+    local seeded = seedStaffAccountsFromConfig()
+    if #seeded > 0 then
+        saveArray(staffFile, seeded)
+    end
+    return seeded
+end
+
 local function deny(message)
     return { ok = false, error = message or 'Keine Berechtigung.' }
 end
@@ -121,13 +216,6 @@ local function broadcastDataChanged(target)
     TriggerClientEvent('police_exam:client:dataChanged', -1, target)
 end
 
-local function getEvaluationText(percentage)
-    if percentage >= 85 then return 'sehr stark' end
-    if percentage >= 70 then return 'stabil' end
-    if percentage >= 50 then return 'ausbaufähig' end
-    return 'kritisch'
-end
-
 local function getGradeNote(percentage)
     if percentage >= 95 then
         return { note = '1', label = 'Sehr gut' }
@@ -142,6 +230,10 @@ local function getGradeNote(percentage)
     end
 
     return { note = '6', label = 'Ungenügend' }
+end
+
+local function getEvaluationText(percentage)
+    return getGradeNote(percentage).label
 end
 
 local function getExamRules()
@@ -438,18 +530,26 @@ local function handleRpc(playerSource, action, payload)
         local username = string.lower(trim(payload.username))
         local password = trim(payload.password)
 
-        for _, account in ipairs(Config.StaffAccounts or {}) do
+        for _, account in ipairs(staffAccounts) do
             if string.lower(trim(account.username)) == username and tostring(account.password or '') == password then
+                local jobGrade = tonumber(account.jobGrade) or 0
+                local canManageSettings = jobGrade >= getSettingsAccessFromGrade()
                 staffSessions[playerSource] = {
+                    username = account.username,
                     displayName = account.displayName or account.username,
-                    rank = account.rank or 'Personalwesen'
+                    rank = account.rank or 'Personalwesen',
+                    jobGrade = jobGrade
                 }
 
                 return {
                     ok = true,
                     success = true,
                     displayName = staffSessions[playerSource].displayName,
-                    rank = staffSessions[playerSource].rank
+                    rank = staffSessions[playerSource].rank,
+                    username = account.username,
+                    jobGrade = jobGrade,
+                    canManageSettings = canManageSettings,
+                    settingsAccessFromGrade = getSettingsAccessFromGrade()
                 }
             end
         end
@@ -461,6 +561,208 @@ local function handleRpc(playerSource, action, payload)
     if action == 'auth:logout' then
         staffSessions[playerSource] = nil
         return { ok = true }
+    end
+
+    if action == 'auth:changePassword' then
+        if not isStaff(playerSource) then
+            return deny()
+        end
+        if not hasSettingsAccess(playerSource) then
+            return deny('Keine Berechtigung für die erweiterten Einstellungen.')
+        end
+
+        local session = staffSessions[playerSource]
+        local index = findStaffIndex(session.username)
+        if not index then
+            return deny('Das Mitarbeiterkonto wurde nicht gefunden.')
+        end
+
+        local currentPassword = tostring(payload.currentPassword or '')
+        local newPassword = tostring(payload.newPassword or '')
+        if currentPassword == '' or newPassword == '' then
+            return deny('Bitte aktuelles und neues Passwort eintragen.')
+        end
+        if #newPassword < 6 then
+            return deny('Das neue Passwort muss mindestens 6 Zeichen lang sein.')
+        end
+        if tostring(staffAccounts[index].password or '') ~= currentPassword then
+            return deny('Das aktuelle Passwort ist falsch.')
+        end
+
+        local previousPassword = staffAccounts[index].password
+        staffAccounts[index].password = newPassword
+        if not saveStaffAccounts() then
+            staffAccounts[index].password = previousPassword
+            return deny('Passwort konnte nicht gespeichert werden.')
+        end
+
+        return { ok = true, success = true }
+    end
+
+    if action == 'staff:list' then
+        if not isStaff(playerSource) then
+            return deny()
+        end
+        if not hasSettingsAccess(playerSource) then
+            return deny('Keine Berechtigung für die Mitarbeiterverwaltung.')
+        end
+
+        local list = {}
+        for _, account in ipairs(staffAccounts) do
+            list[#list + 1] = publicStaffAccount(account)
+        end
+        return { ok = true, accounts = list }
+    end
+
+    if action == 'staff:create' then
+        if not isStaff(playerSource) then
+            return deny()
+        end
+        if not hasSettingsAccess(playerSource) then
+            return deny('Keine Berechtigung für die Mitarbeiterverwaltung.')
+        end
+
+        local username = trim(payload.username)
+        local password = tostring(payload.password or '')
+        local displayName = trim(payload.displayName)
+        local rank = trim(payload.rank)
+        local jobGrade = tonumber(payload.jobGrade)
+
+        if #username < 3 then
+            return deny('Bitte einen gültigen Benutzernamen eintragen (mindestens 3 Zeichen).')
+        end
+        if findStaffIndex(username) then
+            return deny('Dieser Benutzername ist bereits vergeben.')
+        end
+        if #password < 6 then
+            return deny('Das Passwort muss mindestens 6 Zeichen lang sein.')
+        end
+        if displayName == '' then
+            displayName = username
+        end
+        if rank == '' then
+            rank = 'Personalwesen'
+        end
+        if not jobGrade or jobGrade < 0 then
+            return deny('Bitte einen gültigen Job-Grade eintragen.')
+        end
+
+        local account = {
+            username = username,
+            password = password,
+            displayName = displayName,
+            rank = rank,
+            jobGrade = jobGrade
+        }
+        table.insert(staffAccounts, account)
+        if not saveStaffAccounts() then
+            table.remove(staffAccounts)
+            return deny('Mitarbeiterzugang konnte nicht gespeichert werden.')
+        end
+
+        return { ok = true, account = publicStaffAccount(account) }
+    end
+
+    if action == 'staff:update' then
+        if not isStaff(playerSource) then
+            return deny()
+        end
+        if not hasSettingsAccess(playerSource) then
+            return deny('Keine Berechtigung für die Mitarbeiterverwaltung.')
+        end
+
+        local index = findStaffIndex(payload.username)
+        if not index then
+            return deny('Der Mitarbeiterzugang wurde nicht gefunden.')
+        end
+
+        local account = staffAccounts[index]
+        local previous = {
+            displayName = account.displayName,
+            rank = account.rank,
+            jobGrade = account.jobGrade,
+            password = account.password
+        }
+
+        local displayName = trim(payload.displayName)
+        local rank = trim(payload.rank)
+        local jobGrade = tonumber(payload.jobGrade)
+        local newPassword = payload.password ~= nil and tostring(payload.password) or nil
+
+        if displayName ~= '' then
+            account.displayName = displayName
+        end
+        if rank ~= '' then
+            account.rank = rank
+        end
+        if jobGrade ~= nil then
+            if jobGrade < 0 then
+                return deny('Bitte einen gültigen Job-Grade eintragen.')
+            end
+            account.jobGrade = jobGrade
+        end
+        if newPassword ~= nil and newPassword ~= '' then
+            if #newPassword < 6 then
+                return deny('Das Passwort muss mindestens 6 Zeichen lang sein.')
+            end
+            account.password = newPassword
+        end
+
+        if not saveStaffAccounts() then
+            account.displayName = previous.displayName
+            account.rank = previous.rank
+            account.jobGrade = previous.jobGrade
+            account.password = previous.password
+            return deny('Mitarbeiterzugang konnte nicht gespeichert werden.')
+        end
+
+        -- Aktive Sitzungen dieses Kontos aktualisieren
+        for sourceId, session in pairs(staffSessions) do
+            if session and string.lower(trim(session.username)) == string.lower(trim(account.username)) then
+                session.displayName = account.displayName
+                session.rank = account.rank
+                session.jobGrade = account.jobGrade
+            end
+        end
+
+        return { ok = true, account = publicStaffAccount(account) }
+    end
+
+    if action == 'staff:delete' then
+        if not isStaff(playerSource) then
+            return deny()
+        end
+        if not hasSettingsAccess(playerSource) then
+            return deny('Keine Berechtigung für die Mitarbeiterverwaltung.')
+        end
+
+        local index = findStaffIndex(payload.username)
+        if not index then
+            return deny('Der Mitarbeiterzugang wurde nicht gefunden.')
+        end
+
+        local session = staffSessions[playerSource]
+        if string.lower(trim(staffAccounts[index].username)) == string.lower(trim(session.username)) then
+            return deny('Der eigene Zugang kann nicht gelöscht werden.')
+        end
+
+        if #staffAccounts <= 1 then
+            return deny('Der letzte Mitarbeiterzugang kann nicht gelöscht werden.')
+        end
+
+        local removed = table.remove(staffAccounts, index)
+        if not saveStaffAccounts() then
+            table.insert(staffAccounts, index, removed)
+            return deny('Mitarbeiterzugang konnte nicht gelöscht werden.')
+        end
+
+        for sourceId, activeSession in pairs(staffSessions) do
+            if activeSession and string.lower(trim(activeSession.username)) == string.lower(trim(removed.username)) then
+                staffSessions[sourceId] = nil
+            end
+        end
+
+        return { ok = true, deletedUsername = removed.username }
     end
 
     if action == 'records:get' then
@@ -772,7 +1074,10 @@ AddEventHandler('onResourceStart', function(startedResource)
 
     records = loadArray(recordsFile)
     accessCodes = loadArray(codesFile)
-    print(('[%s] Gestartet: %d Akten, %d Zugangscodes geladen.'):format(resourceName, #records, #accessCodes))
+    staffAccounts = loadStaffAccounts()
+    print(('[%s] Gestartet: %d Akten, %d Zugangscodes, %d Mitarbeiterzugänge geladen.'):format(
+        resourceName, #records, #accessCodes, #staffAccounts
+    ))
 end)
 
 AddEventHandler('onResourceStop', function(stoppedResource)
@@ -782,4 +1087,5 @@ AddEventHandler('onResourceStop', function(stoppedResource)
 
     saveArray(recordsFile, records)
     saveArray(codesFile, accessCodes)
+    saveStaffAccounts()
 end)
