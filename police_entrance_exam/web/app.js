@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const APP_BUILD = '1.2.3';
+  const APP_BUILD = '1.4.1';
   console.info(`[police_entrance_exam] UI Build ${APP_BUILD} geladen`);
 
   const { el, mount, frag, setMultiline, field, btn, notice, icon, timerLabel, setTimerContent } = window.PoliceExamDOM;
@@ -16,6 +16,8 @@
   const themeBtn = document.getElementById('theme-toggle');
   const isNui = typeof window.GetParentResourceName === 'function';
   const THEME_KEY = 'police_exam_theme';
+  const INFO_AUTO_HIDE_MS = 3000;
+  const GRADE_LABELS = ['Ungenügend', 'Mangelhaft', 'Ausreichend', 'Befriedigend', 'Gut', 'Sehr gut'];
 
   const DEFAULT_BRANDING = {
     region: 'Land Niedersachsen',
@@ -27,6 +29,7 @@
     subtitle: 'Auswahlverfahren – digitale Eignungsprüfung',
     certificateTitle: 'Zertifikat über die bestandene Eignungsprüfung',
     staffLabel: 'Personalwesen',
+    settingsAccessFromGrade: 10,
     examRules: {
       passPercentage: 78,
       categoryMinimum: 55,
@@ -39,6 +42,10 @@
     view: 'home',
     staffName: '',
     staffRank: '',
+    staffUsername: '',
+    staffJobGrade: 0,
+    canManageSettings: false,
+    staffAccounts: [],
     candidate: null,
     exam: null,
     result: null,
@@ -46,6 +53,7 @@
     records: [],
     codes: [],
     selectedRecordId: null,
+    selectedStaffUsername: null,
     adminTab: 'records',
     search: '',
     error: '',
@@ -54,6 +62,7 @@
     blocked: false,
     deleteConfirmRecordId: null,
     clearRecordsConfirm: false,
+    deleteConfirmStaffUsername: null,
     lastIncident: { type: '', at: 0 },
     theme: 'light',
     branding: { ...DEFAULT_BRANDING },
@@ -113,6 +122,7 @@
   let adminDelegationBound = false;
   let searchRenderTimer = null;
   let wasTabletVisible = false;
+  let infoClearTimer = null;
 
   const EXAM_EXIT_MS = 200;
   const EXAM_ENTER_MS = 420;
@@ -205,8 +215,8 @@
 
   function getGradeInfo(evaluation) {
     if (!evaluation) return { note: '–', label: '–' };
-    if (evaluation.gradeNote) {
-      return { note: evaluation.gradeNote, label: evaluation.gradeLabel || '–' };
+    if (evaluation.gradeNote && GRADE_LABELS.includes(evaluation.gradeLabel)) {
+      return { note: evaluation.gradeNote, label: evaluation.gradeLabel };
     }
     const pct = Number(evaluation.totalPercentage || 0);
     if (pct >= 95) return { note: '1', label: 'Sehr gut' };
@@ -217,6 +227,36 @@
     return { note: '6', label: 'Ungenügend' };
   }
 
+  function categoryEvaluationLabel(score) {
+    if (!score) return '–';
+    if (GRADE_LABELS.includes(score.evaluation)) return score.evaluation;
+    return getGradeInfo({ totalPercentage: score.percentage }).label;
+  }
+
+  function showSuccessNotice(message) {
+    state.info = message;
+    state.error = '';
+    window.clearTimeout(infoClearTimer);
+    const expected = message;
+    infoClearTimer = window.setTimeout(() => {
+      if (state.info !== expected) return;
+      state.info = '';
+      if (state.view === 'admin') {
+        const slot = root.querySelector('[data-notices]');
+        if (slot) fillNoticesSlot(slot);
+        else render();
+      } else {
+        render();
+      }
+    }, INFO_AUTO_HIDE_MS);
+  }
+
+  function clearNotices() {
+    state.error = '';
+    state.info = '';
+    window.clearTimeout(infoClearTimer);
+  }
+
   function buildCertificateDocument(record) {
     const b = state.branding;
     const evaluation = record.evaluation || {};
@@ -225,7 +265,7 @@
       el('td', { text: categoryLabel(score.category) }),
       el('td', { text: `${score.score}/${score.maxScore}` }),
       el('td', { text: `${Number(score.percentage || 0).toFixed(0)}%` }),
-      el('td', { text: score.evaluation }),
+      el('td', { text: categoryEvaluationLabel(score) }),
     ));
 
     return el('article', { className: 'certificate-document', id: 'certificate-print-area' },
@@ -259,7 +299,7 @@
         ),
         el('div', { className: 'certificate-grade-box' },
           el('div', {},
-            el('div', { className: 'label', text: 'Note' }),
+            el('div', { className: 'label', text: 'Bewertung' }),
             el('div', { className: 'certificate-grade-label', text: grade.label }),
           ),
           el('div', { className: 'certificate-grade-note', text: grade.note }),
@@ -412,9 +452,14 @@
     lastRenderedView = null;
     adminDelegationBound = false;
     wasTabletVisible = false;
+    window.clearTimeout(infoClearTimer);
     state.view = 'home';
     state.staffName = '';
     state.staffRank = '';
+    state.staffUsername = '';
+    state.staffJobGrade = 0;
+    state.canManageSettings = false;
+    state.staffAccounts = [];
     state.candidate = null;
     state.exam = null;
     state.result = null;
@@ -422,6 +467,7 @@
     state.records = [];
     state.codes = [];
     state.selectedRecordId = null;
+    state.selectedStaffUsername = null;
     state.adminTab = 'records';
     state.search = '';
     state.error = '';
@@ -429,6 +475,7 @@
     state.blocked = false;
     state.deleteConfirmRecordId = null;
     state.clearRecordsConfirm = false;
+    state.deleteConfirmStaffUsername = null;
   }
 
   function generateCandidateId() {
@@ -500,54 +547,79 @@
     if (notices.childNodes.length) slot.append(notices);
   }
 
+  function buildBackButton(id, label = '← Zurück') {
+    return el('button', { className: 'btn btn-secondary btn-back', id, type: 'button', text: label });
+  }
+
   function staffInitials(name) {
     return String(name || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   }
 
   function renderHome() {
-    const openLoginBtn = el('button', { className: 'btn btn-secondary', id: 'open-login', type: 'button' }, icon('lock'), ` ${state.branding.staffLabel}`);
+    const openLoginBtn = el('button', { className: 'btn btn-secondary btn-staff-login', id: 'open-login', type: 'button' },
+      icon('lock'),
+      ` ${state.branding.staffLabel} Login`,
+    );
     openLoginBtn.addEventListener('click', () => { state.view = 'login'; state.error = ''; render(); });
 
     const nameInput = el('input', { className: 'input', id: 'candidate-name', autocomplete: 'off', placeholder: 'Max Mustermann', required: true });
-    const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true });
-    const codeInput = el('input', { className: 'input code-input', id: 'candidate-code', maxlength: '9', placeholder: 'AB3K-7HNP', required: true });
+    const birthInput = el('input', { className: 'input', id: 'candidate-birth', type: 'date', required: true, placeholder: 'tt.mm.jjjj' });
+    const codeInput = el('input', { className: 'input code-input', id: 'candidate-code', maxlength: '9', placeholder: 'z. B. AB3K-7HNP', required: true });
     codeInput.addEventListener('input', () => {
       let value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
       if (value.length > 4) value = `${value.slice(0, 4)}-${value.slice(4)}`;
       codeInput.value = value;
     });
 
-    const candidateForm = el('form', { id: 'candidate-form' },
+    const codeField = el('div', { className: 'field' },
+      el('label', { text: 'Zugangscode' }),
+      el('div', { className: 'input-with-icon' },
+        el('span', { className: 'input-icon', 'aria-hidden': 'true' }, icon('key')),
+        codeInput,
+      ),
+      el('p', { className: 'field-hint', text: `Der Code wird vom ${state.branding.staffLabel} der Dienststelle bereitgestellt.` }),
+    );
+
+    const securityNotice = el('div', { className: 'notice notice-info home-security-notice' },
+      icon('shieldSm'),
+      el('span', { text: 'Textauswahl, Rechtsklick und Kopieren sind deaktiviert. Screenshots oder Verlassen der Prüfungsansicht werden als Sicherheitsverstoß protokolliert.' }),
+    );
+
+    const candidateForm = el('form', { id: 'candidate-form', className: 'candidate-form' },
       field('Vollständiger Name', nameInput),
       field('Geburtsdatum', birthInput),
-      field('Zugangscode', codeInput),
-      el('div', { style: { height: '12px' } }),
-      buildNotices(),
-      el('button', { className: 'btn btn-primary', style: { width: '100%', marginTop: '16px' }, type: 'submit', text: 'Auswahlprüfung starten →' }),
+      codeField,
+      el('div', { dataset: { notices: '' } }, buildNotices()),
+      securityNotice,
+      el('button', { className: 'btn btn-primary btn-start-exam', type: 'submit', text: 'Auswahlprüfung starten →' }),
     );
     candidateForm.addEventListener('submit', handleCandidateSubmit);
 
     mountView(
-      el('div', { className: 'shell' },
+      el('div', { className: 'shell home-shell' },
         el('div', { className: 'wrap' },
           buildTopbar(openLoginBtn),
           el('section', { className: 'grid-home' },
             el('div', { className: 'card hero' },
               el('div', { className: 'hero-pattern' }),
-              el('span', { className: 'pill' }, el('span', { className: 'pill-dot' }), ' Digitaler Eignungstest'),
-              el('h2', { text: 'Behördliches Auswahlverfahren für Bewerberinnen und Bewerber' }),
-              el('p', { text: `Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem ${state.branding.staffLabel} zur Verfügung.` }),
+              el('div', { className: 'hero-watermark', 'aria-hidden': 'true' },
+                el('img', { src: state.branding.logoUrl, alt: '' }),
+              ),
+              el('div', { className: 'hero-body' },
+                el('span', { className: 'pill' }, icon('document'), ' Digitaler Eignungstest'),
+                el('h2', { text: 'Behördliches Auswahlverfahren für Bewerberinnen und Bewerber.' }),
+                el('p', { text: `Die Prüfung wird einzeln, zeitgebunden und mit gesicherter Prüfungsansicht durchgeführt. Nach Abschluss steht das Ergebnis unmittelbar dem ${state.branding.staffLabel} zur Verfügung.` }),
+              ),
               el('div', { className: 'stat-grid' },
                 el('div', { className: 'stat' }, el('span', { text: 'Dauer' }), el('strong', { text: '25 Min.' })),
                 el('div', { className: 'stat' }, el('span', { text: 'Bereiche' }), el('strong', { text: '4 Module' })),
-                el('div', { className: 'stat' }, el('span', { text: 'Fragen' }), el('strong', { text: '20 Aufgaben' })),
+                el('div', { className: 'stat' }, el('span', { text: 'Navigation' }), el('strong', { text: 'Ohne Rücksprung' })),
               ),
             ),
             el('div', { className: 'card form-card' },
               el('div', { className: 'form-header-icon' }, icon('user')),
-              el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
-              el('h2', { text: 'Prüfung starten' }),
-              el('p', { className: 'muted', text: `Name, Geburtsdatum und den einmaligen Zugangscode des ${state.branding.staffLabel} eingeben.` }),
+              el('h2', { className: 'form-card-title', text: 'Bewerberzugang' }),
+              el('p', { className: 'muted form-card-lead', text: 'Name, Geburtsdatum und den einmaligen Zugangscode eingeben.' }),
               candidateForm,
             ),
           ),
@@ -590,12 +662,12 @@
       field('Passwort', el('input', { className: 'input', id: 'staff-pass', type: 'password', autocomplete: 'current-password', placeholder: '••••••••', required: true })),
       buildNotices(),
       el('div', { className: 'login-actions' },
-        el('button', { className: 'btn btn-secondary', id: 'login-back', type: 'button', text: '← Zurück' }),
+        buildBackButton('login-back'),
         el('button', { className: 'btn btn-primary', type: 'submit' }, icon('lock'), ' Anmelden'),
       ),
     );
     loginForm.addEventListener('submit', handleLogin);
-    loginForm.querySelector('#login-back')?.addEventListener('click', () => { state.view = 'home'; state.error = ''; render(); });
+    loginForm.querySelector('#login-back')?.addEventListener('click', () => { state.view = 'home'; clearNotices(); render(); });
 
     mountView(
       el('div', { className: 'shell login-page' },
@@ -633,9 +705,15 @@
       if (!result.success) throw new Error('Benutzername oder Passwort ist falsch.');
       state.staffName = result.displayName || username;
       state.staffRank = result.rank || state.branding.staffLabel;
+      state.staffUsername = result.username || username;
+      state.staffJobGrade = Number(result.jobGrade) || 0;
+      state.canManageSettings = result.canManageSettings === true;
+      if (typeof result.settingsAccessFromGrade === 'number') {
+        state.branding.settingsAccessFromGrade = result.settingsAccessFromGrade;
+      }
       state.view = 'admin';
-      state.error = '';
-      state.info = '';
+      state.adminTab = 'records';
+      clearNotices();
       try {
         await refreshAdminData();
         startAdminPoll();
@@ -648,6 +726,9 @@
       await rpc('auth:logout').catch(() => {});
       state.staffName = '';
       state.staffRank = '';
+      state.staffUsername = '';
+      state.staffJobGrade = 0;
+      state.canManageSettings = false;
       state.view = 'login';
       state.error = error.message || 'Anmeldung fehlgeschlagen.';
       render();
@@ -1068,20 +1149,37 @@
 
   async function refreshAdminData() {
     if (!state.staffName) return;
-    const [records, codes] = await Promise.all([rpc('records:get'), rpc('codes:get')]);
+    const requests = [rpc('records:get'), rpc('codes:get')];
+    if (state.canManageSettings) requests.push(rpc('staff:list'));
+    const [records, codes, staffResult] = await Promise.all(requests);
     state.records = normalizeArray(records).sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
     state.codes = normalizeArray(codes).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    if (state.canManageSettings) {
+      state.staffAccounts = normalizeArray(staffResult?.accounts || staffResult).sort((a, b) =>
+        String(a.displayName || a.username).localeCompare(String(b.displayName || b.username), 'de')
+      );
+      if (!state.staffAccounts.some((account) => account.username === state.selectedStaffUsername)) {
+        state.selectedStaffUsername = state.staffAccounts[0]?.username || null;
+      }
+    } else {
+      state.staffAccounts = [];
+      state.selectedStaffUsername = null;
+      if (state.adminTab === 'settings') state.adminTab = 'records';
+    }
     if (!state.selectedRecordId || !state.records.some((record) => record.recordId === state.selectedRecordId)) {
       state.selectedRecordId = state.records[0]?.recordId || null;
     }
     if (!state.records.some((record) => record.recordId === state.deleteConfirmRecordId)) state.deleteConfirmRecordId = null;
     if (state.records.length === 0) state.clearRecordsConfirm = false;
+    if (!state.staffAccounts.some((account) => account.username === state.deleteConfirmStaffUsername)) {
+      state.deleteConfirmStaffUsername = null;
+    }
   }
 
   function startAdminPoll() {
     stopAdminPoll();
     adminPoll = window.setInterval(async () => {
-      if (state.view !== 'admin' || !state.staffName || state.adminTab === 'codes') return;
+      if (state.view !== 'admin' || !state.staffName || state.adminTab === 'codes' || state.adminTab === 'settings') return;
       const activeTag = document.activeElement?.tagName?.toLowerCase();
       if (['input', 'textarea', 'select'].includes(activeTag)) return;
       try { await refreshAdminData(); render(); } catch (_) {}
@@ -1146,7 +1244,14 @@
 
   function buildRecordDetail() {
     const record = state.records.find((item) => item.recordId === state.selectedRecordId);
-    if (!record) return el('div', { className: 'empty', text: 'Noch keine Prüfungsakte vorhanden.' });
+    if (!record) {
+      return el('div', {},
+        el('div', { className: 'admin-subpage-header' },
+          buildBackButton('admin-back-home', '← Zurück'),
+        ),
+        el('div', { className: 'empty', text: 'Noch keine Prüfungsakte vorhanden.' }),
+      );
+    }
 
     const isPassed = record.evaluation?.finalDecision === 'BESTANDEN';
     const grade = getGradeInfo(record.evaluation);
@@ -1154,7 +1259,7 @@
       el('td', { text: categoryLabel(score.category) }),
       el('td', { text: `${score.score}/${score.maxScore}` }),
       el('td', { text: `${Number(score.percentage || 0).toFixed(0)}%` }),
-      el('td', { text: score.evaluation }),
+      el('td', { text: categoryEvaluationLabel(score) }),
     ));
 
     const certificateBox = record.certificateNumber
@@ -1194,7 +1299,10 @@
       : null;
 
     return el('div', {},
-      el('div', { className: 'eyebrow', text: 'Prüfungsakte' }),
+      el('div', { className: 'admin-subpage-header' },
+        buildBackButton('admin-panel-back', '← Zurück'),
+        el('div', { className: 'eyebrow', text: 'Prüfungsakte' }),
+      ),
       el('h2', { text: record.candidateName }),
       el('div', { className: 'detail-grid' },
         el('div', { className: 'detail-box' }, el('div', { className: 'small muted', text: 'Verfahrensnummer' }), el('strong', { text: record.candidateId })),
@@ -1205,7 +1313,7 @@
           el('strong', { className: isPassed ? 'result-pass' : 'result-fail', text: `${Number(record.evaluation?.totalPercentage || 0).toFixed(1)}% · ${record.evaluation?.decisionLabel || ''}` }),
         ),
         el('div', { className: 'detail-box' },
-          el('div', { className: 'small muted', text: 'Note' }),
+          el('div', { className: 'small muted', text: 'Bewertung' }),
           el('strong', { text: `${grade.note} · ${grade.label}` }),
         ),
       ),
@@ -1255,7 +1363,10 @@
     const openCount = state.codes.filter((code) => !code.used).length;
     const usedCount = state.codes.filter((code) => code.used).length;
     return el('div', {},
-      el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
+      el('div', { className: 'admin-subpage-header' },
+        buildBackButton('admin-panel-back', '← Zurück'),
+        el('div', { className: 'eyebrow', text: 'Bewerberzugang' }),
+      ),
       el('h2', { text: 'Einmaligen Zugangscode erstellen' }),
       el('p', { className: 'muted', text: 'Der Code ist an den eingegebenen Namen und das Geburtsdatum gebunden.' }),
       el('form', { id: 'create-code-form' },
@@ -1267,6 +1378,126 @@
       ),
       notice('info', icon('info'), el('span', { text: `Offene Codes: ${openCount} · Bereits verwendet: ${usedCount}` })),
     );
+  }
+
+  function buildStaffList() {
+    const items = state.staffAccounts.map((account) => {
+      const active = account.username === state.selectedStaffUsername;
+      return el('div', { className: `record-item${active ? ' active' : ''}` },
+        el('button', { dataset: { staffUser: account.username } },
+          el('strong', { text: account.displayName || account.username }),
+          el('div', { className: 'small muted', text: `${account.rank || '–'} · Grad ${account.jobGrade ?? 0}` }),
+          el('div', { className: 'small muted', text: `@${account.username}` }),
+        ),
+      );
+    });
+
+    return el('div', { className: 'record-list' },
+      items.length ? frag(...items) : el('div', { className: 'empty', text: 'Keine Mitarbeiterzugänge.' }),
+    );
+  }
+
+  function buildSettingsPanel() {
+    const selected = state.staffAccounts.find((account) => account.username === state.selectedStaffUsername);
+    const gradeThreshold = state.branding.settingsAccessFromGrade ?? 10;
+    const deleteControls = selected && state.deleteConfirmStaffUsername === selected.username
+      ? el('div', { className: 'notice notice-error settings-delete-confirm' },
+        el('strong', { text: 'Mitarbeiterzugang endgültig löschen?' }),
+        el('br'),
+        'Der Zugang kann danach nicht wiederhergestellt werden.',
+        el('div', { className: 'settings-actions' },
+          el('button', { className: 'btn btn-danger', id: 'confirm-delete-staff', type: 'button', text: 'Löschen bestätigen' }),
+          el('button', { className: 'btn btn-secondary', id: 'cancel-delete-staff', type: 'button', text: 'Abbrechen' }),
+        ),
+      )
+      : null;
+
+    return el('div', { className: 'settings-panel' },
+      el('div', { className: 'admin-subpage-header' },
+        buildBackButton('admin-panel-back', '← Zurück'),
+        el('div', { className: 'eyebrow', text: 'Erweiterte Einstellungen' }),
+      ),
+      el('h2', { text: 'Einstellungen' }),
+      el('p', { className: 'muted settings-intro', text: `Zugriff ab Job-Grade ${gradeThreshold}. Passwort und Mitarbeiterzugänge verwalten.` }),
+
+      el('section', { className: 'settings-section' },
+        el('div', { className: 'settings-section-head' },
+          el('h3', { text: 'Eigenes Passwort' }),
+          el('p', { className: 'small muted', text: 'Aktuelles Passwort bestätigen und neues festlegen.' }),
+        ),
+        el('form', { id: 'change-password-form', className: 'settings-form' },
+          el('div', { className: 'settings-stack' },
+            field('Aktuelles Passwort', el('input', { className: 'input', id: 'current-password', type: 'password', autocomplete: 'current-password', required: true })),
+          ),
+          el('div', { className: 'settings-grid' },
+            field('Neues Passwort', el('input', { className: 'input', id: 'new-password', type: 'password', autocomplete: 'new-password', required: true, minlength: '6' })),
+            field('Neues Passwort bestätigen', el('input', { className: 'input', id: 'new-password-confirm', type: 'password', autocomplete: 'new-password', required: true, minlength: '6' })),
+          ),
+          el('div', { className: 'settings-actions' },
+            el('button', { className: 'btn btn-primary', type: 'submit', text: 'Passwort speichern' }),
+          ),
+        ),
+      ),
+
+      el('section', { className: 'settings-section' },
+        el('div', { className: 'settings-section-head' },
+          el('h3', { text: 'Neuen Mitarbeiterzugang erstellen' }),
+          el('p', { className: 'small muted', text: 'Login-Daten und Job-Grade für neues Personal.' }),
+        ),
+        el('form', { id: 'create-staff-form', className: 'settings-form' },
+          el('div', { className: 'settings-grid' },
+            field('Benutzername', el('input', { className: 'input', id: 'new-staff-user', autocomplete: 'off', required: true })),
+            field('Anzeigename', el('input', { className: 'input', id: 'new-staff-display', autocomplete: 'off', required: true })),
+            field('Rang', el('input', { className: 'input', id: 'new-staff-rank', placeholder: 'z. B. Polizeioberrat', required: true })),
+            field('Job-Grade', el('input', { className: 'input', id: 'new-staff-grade', type: 'number', min: '0', step: '1', value: String(gradeThreshold), required: true })),
+          ),
+          el('div', { className: 'settings-stack' },
+            field('Passwort', el('input', { className: 'input', id: 'new-staff-pass', type: 'password', autocomplete: 'new-password', required: true, minlength: '6' })),
+          ),
+          el('div', { className: 'settings-actions' },
+            el('button', { className: 'btn btn-primary', type: 'submit', text: 'Zugang erstellen' }),
+          ),
+        ),
+      ),
+
+      el('section', { className: 'settings-section' },
+        el('div', { className: 'settings-section-head' },
+          el('h3', { text: 'Bestehenden Zugang bearbeiten' }),
+          selected
+            ? el('p', { className: 'small muted', text: `Ausgewählt: @${selected.username}` })
+            : el('p', { className: 'small muted', text: 'Links einen Mitarbeiter auswählen.' }),
+        ),
+        selected
+          ? el('form', { id: 'update-staff-form', className: 'settings-form' },
+            el('div', { className: 'settings-grid' },
+              field('Anzeigename', el('input', { className: 'input', id: 'edit-staff-display', value: selected.displayName || '', required: true })),
+              field('Rang', el('input', { className: 'input', id: 'edit-staff-rank', value: selected.rank || '', required: true })),
+              field('Job-Grade', el('input', { className: 'input', id: 'edit-staff-grade', type: 'number', min: '0', step: '1', value: String(selected.jobGrade ?? 0), required: true })),
+              field('Neues Passwort (optional)', el('input', { className: 'input', id: 'edit-staff-pass', type: 'password', autocomplete: 'new-password', minlength: '6' })),
+            ),
+            el('div', { className: 'settings-actions' },
+              el('button', { className: 'btn btn-primary', type: 'submit', text: 'Änderungen speichern' }),
+              selected.username !== state.staffUsername
+                ? el('button', { className: 'btn btn-danger', id: 'delete-staff', type: 'button', text: 'Zugang löschen' })
+                : null,
+            ),
+            deleteControls,
+          )
+          : el('div', { className: 'empty', text: 'Bitte links einen Mitarbeiterzugang auswählen.' }),
+      ),
+    );
+  }
+
+  function adminMainContent() {
+    if (state.adminTab === 'codes') return buildCodeManager();
+    if (state.adminTab === 'settings') return buildSettingsPanel();
+    return buildRecordDetail();
+  }
+
+  function adminSidebarContent() {
+    if (state.adminTab === 'codes') return buildCodeList();
+    if (state.adminTab === 'settings') return buildStaffList();
+    return buildRecordList();
   }
 
   function scheduleAdminSearchRender() {
@@ -1295,9 +1526,13 @@
       const tab = event.target.closest('[data-tab]');
       if (tab) {
         state.adminTab = tab.dataset.tab;
-        state.error = '';
-        state.info = '';
+        clearNotices();
+        state.deleteConfirmStaffUsername = null;
         render();
+        return;
+      }
+      if (event.target.closest('#admin-panel-back') || event.target.closest('#admin-back-home')) {
+        goBackFromAdminSubpage();
         return;
       }
       const recordBtn = event.target.closest('[data-record]');
@@ -1305,6 +1540,13 @@
         state.selectedRecordId = recordBtn.dataset.record;
         state.deleteConfirmRecordId = null;
         state.clearRecordsConfirm = false;
+        render();
+        return;
+      }
+      const staffBtn = event.target.closest('[data-staff-user]');
+      if (staffBtn) {
+        state.selectedStaffUsername = staffBtn.dataset.staffUser;
+        state.deleteConfirmStaffUsername = null;
         render();
         return;
       }
@@ -1319,6 +1561,9 @@
       else if (event.target.closest('#clear-records')) requestClearRecords();
       else if (event.target.closest('#confirm-clear-records')) clearRecords();
       else if (event.target.closest('#cancel-clear-records')) cancelClearRecords();
+      else if (event.target.closest('#delete-staff')) requestDeleteSelectedStaff();
+      else if (event.target.closest('#confirm-delete-staff')) deleteSelectedStaff();
+      else if (event.target.closest('#cancel-delete-staff')) cancelDeleteSelectedStaff();
       else if (event.target.closest('#issue-certificate')) issueCertificate();
       else if (event.target.closest('#view-certificate')) {
         const record = state.records.find((item) => item.recordId === state.selectedRecordId);
@@ -1340,7 +1585,21 @@
 
     layout.addEventListener('submit', (event) => {
       if (event.target.id === 'create-code-form') createCode(event);
+      else if (event.target.id === 'change-password-form') changeOwnPassword(event);
+      else if (event.target.id === 'create-staff-form') createStaffAccount(event);
+      else if (event.target.id === 'update-staff-form') updateStaffAccount(event);
     });
+  }
+
+  function goBackFromAdminSubpage() {
+    if (state.adminTab === 'settings' || state.adminTab === 'codes') {
+      state.adminTab = 'records';
+      clearNotices();
+      state.deleteConfirmStaffUsername = null;
+      render();
+      return;
+    }
+    logout();
   }
 
   function patchAdminView() {
@@ -1356,14 +1615,23 @@
 
     layout.querySelectorAll('[data-tab]').forEach((button) => {
       const active = button.dataset.tab === state.adminTab;
-      button.className = `btn tab${active ? ' active' : ' btn-secondary'}`;
+      button.className = `tab${active ? ' active' : ''}`;
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
     });
 
+    const settingsTab = layout.querySelector('[data-tab="settings"]');
+    if (state.canManageSettings && !settingsTab) {
+      return false;
+    }
+    if (!state.canManageSettings && settingsTab) {
+      return false;
+    }
+
     const sidebar = layout.querySelector('[data-admin-sidebar]');
-    if (sidebar) sidebar.replaceChildren(state.adminTab === 'records' ? buildRecordList() : buildCodeList());
+    if (sidebar) sidebar.replaceChildren(adminSidebarContent());
 
     const main = layout.querySelector('[data-admin-main]');
-    if (main) main.replaceChildren(state.adminTab === 'records' ? buildRecordDetail() : buildCodeManager());
+    if (main) main.replaceChildren(adminMainContent());
 
     fillNoticesSlot(layout.querySelector('[data-notices]'));
     return true;
@@ -1378,16 +1646,47 @@
       el('div', {},
         el('strong', { text: state.staffName }),
         el('br'),
-        el('span', { className: 'small muted', text: state.staffRank }),
+        el('span', { className: 'small muted', text: `${state.staffRank}${state.staffJobGrade ? ` · Grad ${state.staffJobGrade}` : ''}` }),
       ),
     );
+    const backBtn = buildBackButton('admin-top-back');
+    backBtn.addEventListener('click', () => logout());
     const logoutBtn = el('button', { className: 'btn btn-secondary', id: 'logout', type: 'button' }, icon('logout'), ' Abmelden');
     logoutBtn.addEventListener('click', logout);
+
+    const tabs = [
+      el('button', {
+        type: 'button',
+        className: `tab${state.adminTab === 'records' ? ' active' : ''}`,
+        dataset: { tab: 'records' },
+        role: 'tab',
+        'aria-selected': state.adminTab === 'records' ? 'true' : 'false',
+        text: 'Prüfungsakten',
+      }),
+      el('button', {
+        type: 'button',
+        className: `tab${state.adminTab === 'codes' ? ' active' : ''}`,
+        dataset: { tab: 'codes' },
+        role: 'tab',
+        'aria-selected': state.adminTab === 'codes' ? 'true' : 'false',
+        text: 'Zugangscodes',
+      }),
+    ];
+    if (state.canManageSettings) {
+      tabs.push(el('button', {
+        type: 'button',
+        className: `tab${state.adminTab === 'settings' ? ' active' : ''}`,
+        dataset: { tab: 'settings' },
+        role: 'tab',
+        'aria-selected': state.adminTab === 'settings' ? 'true' : 'false',
+        text: 'Einstellungen',
+      }));
+    }
 
     mountView(
       el('div', { className: 'shell', dataset: { adminRoot: '' } },
         el('div', { className: 'wrap' },
-          buildTopbar(frag(staffBadge, logoutBtn)),
+          buildTopbar(frag(backBtn, staffBadge, logoutBtn)),
           el('div', { dataset: { notices: '' } }, buildNotices()),
           el('div', { className: 'admin-layout' },
             el('aside', { className: 'card sidebar' },
@@ -1398,14 +1697,11 @@
                 el('div', { className: 'admin-stat' }, el('strong', { dataset: { adminStatPassed: '' }, text: String(passed) }), el('span', { text: 'Bestanden' })),
                 el('div', { className: 'admin-stat' }, el('strong', { dataset: { adminStatCodes: '' }, text: String(openCodes) }), el('span', { text: 'Codes' })),
               ),
-              el('div', { className: 'tabs' },
-                el('button', { className: `btn tab${state.adminTab === 'records' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'records' }, text: 'Prüfungsakten' }),
-                el('button', { className: `btn tab${state.adminTab === 'codes' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'codes' }, text: 'Zugangscodes' }),
-              ),
-              el('div', { dataset: { adminSidebar: '' } }, state.adminTab === 'records' ? buildRecordList() : buildCodeList()),
+              el('div', { className: 'tabs', role: 'tablist', 'aria-label': 'Verwaltungsbereiche' }, ...tabs),
+              el('div', { dataset: { adminSidebar: '' } }, adminSidebarContent()),
             ),
             el('main', { className: 'card content', dataset: { adminMain: '' } },
-              state.adminTab === 'records' ? buildRecordDetail() : buildCodeManager(),
+              adminMainContent(),
             ),
           ),
         ),
@@ -1425,8 +1721,7 @@
       const result = await rpc('code:create', { candidateName, candidateBirthDate });
       const createdCode = result.code?.code || result.code;
       if (!createdCode) throw new Error('Der Server hat keinen Zugangscode zurückgegeben.');
-      state.info = `Zugangscode ${createdCode} wurde erstellt.`;
-      state.error = '';
+      showSuccessNotice(`Zugangscode ${createdCode} wurde erstellt.`);
       await refreshAdminData();
     } catch (error) {
       state.error = error.message || 'Zugangscode konnte nicht erstellt werden.';
@@ -1436,8 +1731,14 @@
   }
 
   async function deleteCode(code) {
-    try { await rpc('code:delete', { code }); await refreshAdminData(); state.info = 'Zugangscode wurde gelöscht.'; state.error = ''; }
-    catch (error) { state.error = error.message; state.info = ''; }
+    try {
+      await rpc('code:delete', { code });
+      await refreshAdminData();
+      showSuccessNotice('Zugangscode wurde gelöscht.');
+    } catch (error) {
+      state.error = error.message;
+      state.info = '';
+    }
     render();
   }
 
@@ -1445,8 +1746,7 @@
     if (!state.selectedRecordId) return;
     state.deleteConfirmRecordId = state.selectedRecordId;
     state.clearRecordsConfirm = false;
-    state.error = '';
-    state.info = '';
+    clearNotices();
     render();
   }
 
@@ -1463,8 +1763,7 @@
       if (!result.deletedRecordId) throw new Error('Der Server hat das Löschen nicht bestätigt.');
       state.deleteConfirmRecordId = null;
       await refreshAdminData();
-      state.info = 'Prüfungsakte wurde endgültig gelöscht.';
-      state.error = '';
+      showSuccessNotice('Prüfungsakte wurde endgültig gelöscht.');
     } catch (error) {
       state.error = error.message || 'Prüfungsakte konnte nicht gelöscht werden.';
       state.info = '';
@@ -1475,8 +1774,7 @@
   function requestClearRecords() {
     state.clearRecordsConfirm = true;
     state.deleteConfirmRecordId = null;
-    state.error = '';
-    state.info = '';
+    clearNotices();
     render();
   }
 
@@ -1491,10 +1789,106 @@
       await rpc('records:clear');
       state.clearRecordsConfirm = false;
       await refreshAdminData();
-      state.info = 'Alle Prüfungsakten wurden endgültig gelöscht.';
-      state.error = '';
+      showSuccessNotice('Alle Prüfungsakten wurden endgültig gelöscht.');
     } catch (error) {
       state.error = error.message || 'Prüfungsakten konnten nicht gelöscht werden.';
+      state.info = '';
+    }
+    render();
+  }
+
+  async function changeOwnPassword(event) {
+    event.preventDefault();
+    const currentPassword = document.getElementById('current-password')?.value || '';
+    const newPassword = document.getElementById('new-password')?.value || '';
+    const confirmPassword = document.getElementById('new-password-confirm')?.value || '';
+    if (newPassword !== confirmPassword) {
+      state.error = 'Die neuen Passwörter stimmen nicht überein.';
+      state.info = '';
+      render();
+      return;
+    }
+    try {
+      await rpc('auth:changePassword', { currentPassword, newPassword });
+      showSuccessNotice('Passwort wurde geändert.');
+      const form = document.getElementById('change-password-form');
+      form?.reset();
+    } catch (error) {
+      state.error = error.message || 'Passwort konnte nicht geändert werden.';
+      state.info = '';
+    }
+    render();
+  }
+
+  async function createStaffAccount(event) {
+    event.preventDefault();
+    const username = document.getElementById('new-staff-user')?.value.trim() || '';
+    const displayName = document.getElementById('new-staff-display')?.value.trim() || '';
+    const rank = document.getElementById('new-staff-rank')?.value.trim() || '';
+    const jobGrade = Number(document.getElementById('new-staff-grade')?.value);
+    const password = document.getElementById('new-staff-pass')?.value || '';
+    try {
+      const result = await rpc('staff:create', { username, displayName, rank, jobGrade, password });
+      await refreshAdminData();
+      state.selectedStaffUsername = result.account?.username || username;
+      showSuccessNotice(`Mitarbeiterzugang ${username} wurde erstellt.`);
+      document.getElementById('create-staff-form')?.reset();
+    } catch (error) {
+      state.error = error.message || 'Mitarbeiterzugang konnte nicht erstellt werden.';
+      state.info = '';
+    }
+    render();
+  }
+
+  async function updateStaffAccount(event) {
+    event.preventDefault();
+    if (!state.selectedStaffUsername) return;
+    const displayName = document.getElementById('edit-staff-display')?.value.trim() || '';
+    const rank = document.getElementById('edit-staff-rank')?.value.trim() || '';
+    const jobGrade = Number(document.getElementById('edit-staff-grade')?.value);
+    const password = document.getElementById('edit-staff-pass')?.value || '';
+    try {
+      const payload = { username: state.selectedStaffUsername, displayName, rank, jobGrade };
+      if (password) payload.password = password;
+      const result = await rpc('staff:update', payload);
+      await refreshAdminData();
+      if (state.selectedStaffUsername === state.staffUsername && result.account) {
+        state.staffName = result.account.displayName || state.staffName;
+        state.staffRank = result.account.rank || state.staffRank;
+        state.staffJobGrade = Number(result.account.jobGrade) || 0;
+        state.canManageSettings = state.staffJobGrade >= (state.branding.settingsAccessFromGrade ?? 10);
+      }
+      showSuccessNotice('Mitarbeiterzugang wurde aktualisiert.');
+    } catch (error) {
+      state.error = error.message || 'Mitarbeiterzugang konnte nicht aktualisiert werden.';
+      state.info = '';
+    }
+    render();
+  }
+
+  function requestDeleteSelectedStaff() {
+    if (!state.selectedStaffUsername) return;
+    state.deleteConfirmStaffUsername = state.selectedStaffUsername;
+    clearNotices();
+    render();
+  }
+
+  function cancelDeleteSelectedStaff() {
+    state.deleteConfirmStaffUsername = null;
+    render();
+  }
+
+  async function deleteSelectedStaff() {
+    const username = state.deleteConfirmStaffUsername;
+    if (!username) return;
+    try {
+      const result = await rpc('staff:delete', { username });
+      if (!result.deletedUsername) throw new Error('Der Server hat das Löschen nicht bestätigt.');
+      state.deleteConfirmStaffUsername = null;
+      await refreshAdminData();
+      showSuccessNotice('Mitarbeiterzugang wurde gelöscht.');
+    } catch (error) {
+      state.error = error.message || 'Mitarbeiterzugang konnte nicht gelöscht werden.';
       state.info = '';
     }
     render();
@@ -1510,8 +1904,7 @@
       if (!certificateNumber) throw new Error('Der Server hat kein Zertifikat zurückgegeben.');
       await refreshAdminData();
       issuedRecord = state.records.find((item) => item.recordId === record.recordId);
-      state.info = `Zertifikat ${certificateNumber} wurde ausgestellt.`;
-      state.error = '';
+      showSuccessNotice(`Zertifikat ${certificateNumber} wurde ausgestellt.`);
     } catch (error) {
       state.error = error.message || 'Zertifikat konnte nicht ausgestellt werden.';
       state.info = '';
@@ -1524,13 +1917,20 @@
     await rpc('auth:logout').catch(() => {});
     stopAdminPoll();
     adminDelegationBound = false;
+    window.clearTimeout(infoClearTimer);
     state.staffName = '';
     state.staffRank = '';
+    state.staffUsername = '';
+    state.staffJobGrade = 0;
+    state.canManageSettings = false;
+    state.staffAccounts = [];
     state.records = [];
     state.codes = [];
+    state.selectedStaffUsername = null;
+    state.deleteConfirmStaffUsername = null;
+    state.adminTab = 'records';
     state.view = 'home';
-    state.error = '';
-    state.info = '';
+    clearNotices();
     render();
   }
 

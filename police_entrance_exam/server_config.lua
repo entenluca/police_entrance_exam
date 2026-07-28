@@ -1,11 +1,14 @@
 -- Diese Datei wird ausschließlich serverseitig geladen.
 -- DIE STANDARD-ZUGANGSDATEN VOR PRODUKTIVBETRIEB ÄNDERN.
+-- jobGrade steuert den Zugriff auf erweiterte Einstellungen
+-- (siehe Config.SettingsAccessFromGrade in config.lua).
 Config.StaffAccounts = {
     {
         username = 'admin',
         password = 'PoliceExam2026!',
         displayName = 'Personalwesen',
-        rank = 'Administration'
+        rank = 'Polizeioberrat',
+        jobGrade = 10
     }
 }
 
