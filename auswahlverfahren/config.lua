@@ -35,10 +35,12 @@ Config.Police = {
     Framework = 'auto',
 }
 
--- Berechtigungen über Police-Rang-ID (job.grade). Höhere ID = mehr Rechte.
+-- Berechtigungen: nur die aufgelisteten Police-Rang-IDs sind erlaubt (kein Mindestrang).
 Config.Permissions = {
-    ChangePasswordMinRankId = 5,
-    ResetStaffPasswordMinRankId = 8,
+    -- z.B. nur Rang 5 darf ändern, Rang 7 nicht
+    ChangePasswordRankIds = { 5 },
+    -- z.B. nur Rang 8 und 9 dürfen andere Konten zurücksetzen
+    ResetStaffPasswordRankIds = { 8 },
 }
 
 -- Personal-Zugangsdaten (werden beim ersten Start nach data/staff_accounts.json übernommen)

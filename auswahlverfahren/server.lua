@@ -155,18 +155,86 @@ local function resolveStaffRankId(playerSource, account)
     return tonumber(account and account.rankId) or 0
 end
 
-local function getPermissionRankId(permissionKey)
+local function normalizeRankIdList(value)
+    local result = {}
+    local seen = {}
+
+    if type(value) == 'number' then
+        value = { value }
+    end
+
+    if type(value) ~= 'table' then
+        return result
+    end
+
+    local function addRankId(entry)
+        local rankId = tonumber(entry)
+        if rankId == nil or seen[rankId] then
+            return
+        end
+
+        seen[rankId] = true
+        result[#result + 1] = rankId
+    end
+
+    for _, entry in ipairs(value) do
+        addRankId(entry)
+    end
+
+    for key, entry in pairs(value) do
+        if type(key) ~= 'number' then
+            addRankId(entry)
+        end
+    end
+
+    table.sort(result)
+    return result
+end
+
+local function getPermissionRankIds(permissionKey)
     local permissions = type(Config.Permissions) == 'table' and Config.Permissions or {}
 
-    if permissionKey == 'ChangePasswordMinRank' or permissionKey == 'ChangePasswordMinRankId' then
-        return tonumber(permissions.ChangePasswordMinRankId) or 0
+    if permissionKey == 'ChangePassword'
+        or permissionKey == 'ChangePasswordMinRankId'
+        or permissionKey == 'ChangePasswordRankIds' then
+        return normalizeRankIdList(permissions.ChangePasswordRankIds)
     end
 
-    if permissionKey == 'ResetStaffPasswordMinRank' or permissionKey == 'ResetStaffPasswordMinRankId' then
-        return tonumber(permissions.ResetStaffPasswordMinRankId) or 0
+    if permissionKey == 'ResetStaffPassword'
+        or permissionKey == 'ResetStaffPasswordMinRankId'
+        or permissionKey == 'ResetStaffPasswordRankIds' then
+        return normalizeRankIdList(permissions.ResetStaffPasswordRankIds)
     end
 
-    return 0
+    return {}
+end
+
+local function formatAllowedRankIds(allowedIds)
+    if #allowedIds == 0 then
+        return 'keine'
+    end
+
+    local parts = {}
+    for _, rankId in ipairs(allowedIds) do
+        parts[#parts + 1] = tostring(rankId)
+    end
+
+    return table.concat(parts, ', ')
+end
+
+local function isRankAllowed(rankId, allowedIds)
+    local wanted = tonumber(rankId)
+    if wanted == nil then
+        return false
+    end
+
+    for _, allowed in ipairs(allowedIds) do
+        if wanted == allowed then
+            return true
+        end
+    end
+
+    return false
 end
 
 local function hasPermission(playerSource, permissionKey)
@@ -176,7 +244,7 @@ local function hasPermission(playerSource, permissionKey)
     end
 
     local rankId = tonumber(session.rankId) or 0
-    return rankId >= getPermissionRankId(permissionKey)
+    return isRankAllowed(rankId, getPermissionRankIds(permissionKey))
 end
 
 local function sanitizeStaffAccount(account)
@@ -273,8 +341,8 @@ local function getStaffSessionPayload(playerSource)
         rank = session.rank,
         rankId = session.rankId,
         username = session.username,
-        canChangePassword = hasPermission(playerSource, 'ChangePasswordMinRankId'),
-        canResetStaffPassword = hasPermission(playerSource, 'ResetStaffPasswordMinRankId'),
+        canChangePassword = hasPermission(playerSource, 'ChangePasswordRankIds'),
+        canResetStaffPassword = hasPermission(playerSource, 'ResetStaffPasswordRankIds'),
     }
 end
 
@@ -669,10 +737,10 @@ local function handleRpc(playerSource, action, payload)
             return deny()
         end
 
-        if not hasPermission(playerSource, 'ChangePasswordMinRankId') then
-            return deny(('Ihr Police-Rang (%d) erlaubt keine Passwortänderung. Mindestens Rang %d erforderlich.'):format(
+        if not hasPermission(playerSource, 'ChangePasswordRankIds') then
+            return deny(('Ihr Police-Rang (%d) ist nicht berechtigt. Erlaubte Ränge: %s'):format(
                 tonumber(staffSessions[playerSource].rankId) or 0,
-                getPermissionRankId('ChangePasswordMinRankId')
+                formatAllowedRankIds(getPermissionRankIds('ChangePasswordRankIds'))
             ))
         end
 
@@ -714,10 +782,10 @@ local function handleRpc(playerSource, action, payload)
             return deny()
         end
 
-        if not hasPermission(playerSource, 'ResetStaffPasswordMinRankId') then
-            return deny(('Ihr Police-Rang (%d) erlaubt keine Passwort-Zurücksetzung. Mindestens Rang %d erforderlich.'):format(
+        if not hasPermission(playerSource, 'ResetStaffPasswordRankIds') then
+            return deny(('Ihr Police-Rang (%d) ist nicht berechtigt. Erlaubte Ränge: %s'):format(
                 tonumber(staffSessions[playerSource].rankId) or 0,
-                getPermissionRankId('ResetStaffPasswordMinRankId')
+                formatAllowedRankIds(getPermissionRankIds('ResetStaffPasswordRankIds'))
             ))
         end
 
@@ -757,7 +825,7 @@ local function handleRpc(playerSource, action, payload)
             return deny()
         end
 
-        if not hasPermission(playerSource, 'ResetStaffPasswordMinRankId') then
+        if not hasPermission(playerSource, 'ResetStaffPasswordRankIds') then
             return deny('Keine Berechtigung zur Kontenübersicht.')
         end
 

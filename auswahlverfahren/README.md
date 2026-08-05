@@ -40,7 +40,7 @@ restart auswahlverfahren
 | `Config.Branding` | Dienststelle, Logo, Titel |
 | `Config.StaffAccounts` | Start-Personal-Konten |
 | `Config.Police` | Police-Job & Framework |
-| `Config.Permissions` | Mindest-Rang-IDs für Passwortänderung |
+| `Config.Permissions` | Erlaubte Rang-IDs für Passwortänderung |
 | `Config.ExamQuestions` | Lösungsschlüssel (serverseitig) |
 
 ### Police-Rang-IDs (Berechtigungen)
@@ -52,8 +52,8 @@ Config.Police = {
 }
 
 Config.Permissions = {
-    ChangePasswordMinRankId = 5,   -- ab Police-Rang 5 eigenes Passwort ändern
-    ResetStaffPasswordMinRankId = 8, -- ab Police-Rang 8 andere Konten zurücksetzen
+    ChangePasswordRankIds = { 5 },       -- nur diese Ränge dürfen eigenes Passwort ändern
+    ResetStaffPasswordRankIds = { 8 },   -- nur diese Ränge dürfen andere Konten zurücksetzen
 }
 ```
 
@@ -79,9 +79,9 @@ Standardzugang der ausgelieferten Version:
 
 ### Passwort im System ändern
 
-Ab Police-Rang **5** (`ChangePasswordMinRankId`) kann Personal das eigene Passwort unter **Einstellungen** ändern.
+Nur die in `ChangePasswordRankIds` eingetragenen Police-Ränge dürfen das eigene Passwort unter **Einstellungen** ändern (z. B. nur Rang `5`, nicht Rang `7`).
 
-Ab Police-Rang **8** (`ResetStaffPasswordMinRankId`) können Passwörter anderer Konten zurückgesetzt werden.
+Nur die in `ResetStaffPasswordRankIds` eingetragenen Ränge dürfen Passwörter anderer Konten zurücksetzen.
 
 Geänderte Passwörter werden in `data/staff_accounts.json` gespeichert und überleben einen Neustart.
 
