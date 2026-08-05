@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const APP_BUILD = '1.2.3';
-  console.info(`[police_entrance_exam] UI Build ${APP_BUILD} geladen`);
+  const APP_BUILD = '1.3.0';
+  console.info(`[auswahlverfahren] UI Build ${APP_BUILD} geladen`);
 
   const { el, mount, frag, setMultiline, field, btn, notice, icon, timerLabel, setTimerContent } = window.PoliceExamDOM;
 
@@ -23,8 +23,8 @@
     chromeTitle: 'Land Niedersachsen · Polizeiinspektion Hannover',
     logoUrl: 'logo.svg',
     logoAlt: 'Dienststellenlogo',
-    appTitle: 'Polizei-Eignungsprüfung',
-    subtitle: 'Auswahlverfahren – digitale Eignungsprüfung',
+    appTitle: 'Auswahlverfahren',
+    subtitle: 'Digitale Eignungsprüfung',
     certificateTitle: 'Zertifikat über die bestandene Eignungsprüfung',
     staffLabel: 'Personalwesen',
     examRules: {
@@ -39,6 +39,10 @@
     view: 'home',
     staffName: '',
     staffRank: '',
+    staffUsername: '',
+    canChangePassword: false,
+    canResetStaffPassword: false,
+    staffAccounts: [],
     candidate: null,
     exam: null,
     result: null,
@@ -413,8 +417,7 @@
     adminDelegationBound = false;
     wasTabletVisible = false;
     state.view = 'home';
-    state.staffName = '';
-    state.staffRank = '';
+    clearStaffSession();
     state.candidate = null;
     state.exam = null;
     state.result = null;
@@ -618,6 +621,23 @@
     );
   }
 
+  function applyStaffSession(result, fallbackUsername = '') {
+    state.staffName = result.displayName || fallbackUsername;
+    state.staffRank = result.rank || state.branding.staffLabel;
+    state.staffUsername = result.username || fallbackUsername;
+    state.canChangePassword = result.canChangePassword === true;
+    state.canResetStaffPassword = result.canResetStaffPassword === true;
+  }
+
+  function clearStaffSession() {
+    state.staffName = '';
+    state.staffRank = '';
+    state.staffUsername = '';
+    state.canChangePassword = false;
+    state.canResetStaffPassword = false;
+    state.staffAccounts = [];
+  }
+
   async function handleLogin(event) {
     event.preventDefault();
     if (state.loginPending) return;
@@ -631,8 +651,7 @@
     try {
       const result = await rpc('auth:login', { username, password });
       if (!result.success) throw new Error('Benutzername oder Passwort ist falsch.');
-      state.staffName = result.displayName || username;
-      state.staffRank = result.rank || state.branding.staffLabel;
+      applyStaffSession(result, username);
       state.view = 'admin';
       state.error = '';
       state.info = '';
@@ -646,8 +665,7 @@
       render();
     } catch (error) {
       await rpc('auth:logout').catch(() => {});
-      state.staffName = '';
-      state.staffRank = '';
+      clearStaffSession();
       state.view = 'login';
       state.error = error.message || 'Anmeldung fehlgeschlagen.';
       render();
@@ -1068,9 +1086,15 @@
 
   async function refreshAdminData() {
     if (!state.staffName) return;
-    const [records, codes] = await Promise.all([rpc('records:get'), rpc('codes:get')]);
+    const tasks = [rpc('records:get'), rpc('codes:get')];
+    if (state.canResetStaffPassword) tasks.push(rpc('staff:list'));
+    const results = await Promise.all(tasks);
+    const [records, codes, staffAccounts] = results;
     state.records = normalizeArray(records).sort((a, b) => new Date(b.completedAt || 0) - new Date(a.completedAt || 0));
     state.codes = normalizeArray(codes).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    if (staffAccounts) {
+      state.staffAccounts = normalizeArray(staffAccounts).sort((a, b) => String(a.username || '').localeCompare(String(b.username || ''), 'de'));
+    }
     if (!state.selectedRecordId || !state.records.some((record) => record.recordId === state.selectedRecordId)) {
       state.selectedRecordId = state.records[0]?.recordId || null;
     }
@@ -1081,7 +1105,7 @@
   function startAdminPoll() {
     stopAdminPoll();
     adminPoll = window.setInterval(async () => {
-      if (state.view !== 'admin' || !state.staffName || state.adminTab === 'codes') return;
+      if (state.view !== 'admin' || !state.staffName || ['codes', 'settings'].includes(state.adminTab)) return;
       const activeTag = document.activeElement?.tagName?.toLowerCase();
       if (['input', 'textarea', 'select'].includes(activeTag)) return;
       try { await refreshAdminData(); render(); } catch (_) {}
@@ -1238,6 +1262,66 @@
     );
   }
 
+  function buildSettingsManager() {
+    const sections = [];
+
+    if (state.canChangePassword) {
+      sections.push(
+        el('div', { className: 'settings-section' },
+          el('div', { className: 'eyebrow', text: 'Eigenes Konto' }),
+          el('h2', { text: 'Passwort ändern' }),
+          el('p', { className: 'muted', text: 'Das neue Passwort wird serverseitig gespeichert und gilt ab sofort für Ihren Zugang.' }),
+          el('form', { id: 'change-password-form' },
+            field('Aktuelles Passwort', el('input', { className: 'input', id: 'current-password', type: 'password', autocomplete: 'current-password', required: true })),
+            field('Neues Passwort', el('input', { className: 'input', id: 'new-password', type: 'password', autocomplete: 'new-password', minLength: 8, required: true })),
+            field('Neues Passwort bestätigen', el('input', { className: 'input', id: 'confirm-password', type: 'password', autocomplete: 'new-password', minLength: 8, required: true })),
+            el('button', { className: 'btn btn-primary', type: 'submit' }, icon('lock'), ' Passwort speichern'),
+          ),
+        ),
+      );
+    }
+
+    if (state.canResetStaffPassword) {
+      const accountItems = state.staffAccounts.map((account) => el('div', { className: 'code-item' },
+        el('strong', { text: account.displayName || account.username }),
+        el('div', { className: 'small muted', text: `${account.username} · ${account.rank || '–'}` }),
+        el('form', { className: 'inline-reset-form', dataset: { resetUser: account.username } },
+          field('Neues Passwort', el('input', { className: 'input', type: 'password', autocomplete: 'new-password', minLength: 8, required: true })),
+          el('button', { className: 'btn btn-secondary', type: 'submit', text: 'Passwort zurücksetzen' }),
+        ),
+      ));
+
+      sections.push(
+        el('div', { className: 'settings-section', style: { marginTop: '24px' } },
+          el('div', { className: 'eyebrow', text: 'Personalverwaltung' }),
+          el('h2', { text: 'Passwörter anderer Konten' }),
+          el('p', { className: 'muted', text: 'Nur für Konten mit gleichem oder niedrigerem Rang verfügbar.' }),
+          el('div', { className: 'code-list' },
+            accountItems.length ? frag(...accountItems) : el('div', { className: 'empty', text: 'Keine Personal-Konten gefunden.' }),
+          ),
+        ),
+      );
+    }
+
+    if (!sections.length) {
+      return el('div', { className: 'empty', text: 'Für Ihren Rang sind keine Systemeinstellungen verfügbar.' });
+    }
+
+    return el('div', {}, ...sections);
+  }
+
+  function buildAdminSidebarContent() {
+    if (state.adminTab === 'records') return buildRecordList();
+    if (state.adminTab === 'codes') return buildCodeList();
+    return el('div', { className: 'empty', text: 'Passwort- und Kontoeinstellungen werden rechts bearbeitet.' });
+  }
+
+  function buildAdminMainContent() {
+    if (state.adminTab === 'records') return buildRecordDetail();
+    if (state.adminTab === 'codes') return buildCodeManager();
+    return buildSettingsManager();
+  }
+
   function buildCodeList() {
     const items = state.codes.map((code) => el('div', { className: 'code-item' },
       el('span', { className: 'code-value', text: code.code }),
@@ -1340,7 +1424,57 @@
 
     layout.addEventListener('submit', (event) => {
       if (event.target.id === 'create-code-form') createCode(event);
+      else if (event.target.id === 'change-password-form') changePassword(event);
+      else if (event.target.closest('[data-reset-user]')) resetStaffPassword(event);
     });
+  }
+
+  async function changePassword(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const currentPassword = form.querySelector('#current-password')?.value || '';
+    const newPassword = form.querySelector('#new-password')?.value || '';
+    const confirmPassword = form.querySelector('#confirm-password')?.value || '';
+    if (newPassword !== confirmPassword) {
+      state.error = 'Die neuen Passwörter stimmen nicht überein.';
+      state.info = '';
+      render();
+      return;
+    }
+
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    try {
+      await rpc('auth:changePassword', { currentPassword, newPassword });
+      form.reset();
+      state.info = 'Ihr Passwort wurde erfolgreich geändert.';
+      state.error = '';
+    } catch (error) {
+      state.error = error.message || 'Passwort konnte nicht geändert werden.';
+      state.info = '';
+    }
+    if (submitButton) submitButton.disabled = false;
+    render();
+  }
+
+  async function resetStaffPassword(event) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const username = form.dataset.resetUser;
+    const newPassword = form.querySelector('input[type="password"]')?.value || '';
+    const submitButton = form.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    try {
+      await rpc('auth:resetStaffPassword', { username, newPassword });
+      form.reset();
+      state.info = `Das Passwort für ${username} wurde zurückgesetzt.`;
+      state.error = '';
+    } catch (error) {
+      state.error = error.message || 'Passwort konnte nicht zurückgesetzt werden.';
+      state.info = '';
+    }
+    if (submitButton) submitButton.disabled = false;
+    render();
   }
 
   function patchAdminView() {
@@ -1360,10 +1494,10 @@
     });
 
     const sidebar = layout.querySelector('[data-admin-sidebar]');
-    if (sidebar) sidebar.replaceChildren(state.adminTab === 'records' ? buildRecordList() : buildCodeList());
+    if (sidebar) sidebar.replaceChildren(buildAdminSidebarContent());
 
     const main = layout.querySelector('[data-admin-main]');
-    if (main) main.replaceChildren(state.adminTab === 'records' ? buildRecordDetail() : buildCodeManager());
+    if (main) main.replaceChildren(buildAdminMainContent());
 
     fillNoticesSlot(layout.querySelector('[data-notices]'));
     return true;
@@ -1384,6 +1518,15 @@
     const logoutBtn = el('button', { className: 'btn btn-secondary', id: 'logout', type: 'button' }, icon('logout'), ' Abmelden');
     logoutBtn.addEventListener('click', logout);
 
+    const showSettingsTab = state.canChangePassword || state.canResetStaffPassword;
+    const tabs = [
+      el('button', { className: `btn tab${state.adminTab === 'records' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'records' }, text: 'Prüfungsakten' }),
+      el('button', { className: `btn tab${state.adminTab === 'codes' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'codes' }, text: 'Zugangscodes' }),
+    ];
+    if (showSettingsTab) {
+      tabs.push(el('button', { className: `btn tab${state.adminTab === 'settings' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'settings' }, text: 'Einstellungen' }));
+    }
+
     mountView(
       el('div', { className: 'shell', dataset: { adminRoot: '' } },
         el('div', { className: 'wrap' },
@@ -1398,15 +1541,10 @@
                 el('div', { className: 'admin-stat' }, el('strong', { dataset: { adminStatPassed: '' }, text: String(passed) }), el('span', { text: 'Bestanden' })),
                 el('div', { className: 'admin-stat' }, el('strong', { dataset: { adminStatCodes: '' }, text: String(openCodes) }), el('span', { text: 'Codes' })),
               ),
-              el('div', { className: 'tabs' },
-                el('button', { className: `btn tab${state.adminTab === 'records' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'records' }, text: 'Prüfungsakten' }),
-                el('button', { className: `btn tab${state.adminTab === 'codes' ? ' active' : ' btn-secondary'}`, dataset: { tab: 'codes' }, text: 'Zugangscodes' }),
-              ),
-              el('div', { dataset: { adminSidebar: '' } }, state.adminTab === 'records' ? buildRecordList() : buildCodeList()),
+              el('div', { className: 'tabs' }, ...tabs),
+              el('div', { dataset: { adminSidebar: '' } }, buildAdminSidebarContent()),
             ),
-            el('main', { className: 'card content', dataset: { adminMain: '' } },
-              state.adminTab === 'records' ? buildRecordDetail() : buildCodeManager(),
-            ),
+            el('main', { className: 'card content', dataset: { adminMain: '' } }, buildAdminMainContent()),
           ),
         ),
       ),
@@ -1524,8 +1662,7 @@
     await rpc('auth:logout').catch(() => {});
     stopAdminPoll();
     adminDelegationBound = false;
-    state.staffName = '';
-    state.staffRank = '';
+    clearStaffSession();
     state.records = [];
     state.codes = [];
     state.view = 'home';

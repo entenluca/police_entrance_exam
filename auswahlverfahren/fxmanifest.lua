@@ -3,18 +3,17 @@ game 'gta5'
 lua54 'yes'
 
 author 'FiveM conversion by OpenAI'
-description 'Standalone Polizei-Eignungsprüfung mit NUI und Lua-Persistenz'
-version '1.2.3'
+description 'Standalone Auswahlverfahren mit NUI und Lua-Persistenz'
+version '1.3.0'
 
 ui_page 'web/index.html'
 
 shared_scripts {
     'config.lua',
-    'branding_config.lua'
 }
+
 client_script 'client.lua'
 server_scripts {
-    'server_config.lua',
     'server.lua'
 }
 

@@ -9,22 +9,27 @@ local function debugPrint(message)
     end
 end
 
+local function getBrandingConfig()
+    return type(Config.Branding) == 'table' and Config.Branding or {}
+end
+
 local function getBrandingPayload()
-    local chromeTitle = BrandingConfig.ChromeTitle
+    local branding = getBrandingConfig()
+    local chromeTitle = branding.ChromeTitle
     if not chromeTitle or chromeTitle == '' then
-        chromeTitle = ('%s · %s'):format(BrandingConfig.Region or '', BrandingConfig.Department or '')
+        chromeTitle = ('%s · %s'):format(branding.Region or '', branding.Department or '')
     end
 
     return {
-        region = BrandingConfig.Region or 'Land Niedersachsen',
-        department = BrandingConfig.Department or 'Polizeiinspektion Hannover',
+        region = branding.Region or 'Land Niedersachsen',
+        department = branding.Department or 'Polizeiinspektion Hannover',
         chromeTitle = chromeTitle,
-        logoUrl = BrandingConfig.LogoUrl or 'logo.svg',
-        logoAlt = BrandingConfig.LogoAlt or 'Dienststellenlogo',
-        appTitle = BrandingConfig.AppTitle or 'Polizei-Eignungsprüfung',
-        subtitle = BrandingConfig.Subtitle or 'Auswahlverfahren – digitale Eignungsprüfung',
-        certificateTitle = BrandingConfig.CertificateTitle or 'Zertifikat über die bestandene Eignungsprüfung',
-        staffLabel = BrandingConfig.StaffLabel or 'Personalwesen',
+        logoUrl = branding.LogoUrl or 'logo.svg',
+        logoAlt = branding.LogoAlt or 'Dienststellenlogo',
+        appTitle = branding.AppTitle or 'Auswahlverfahren',
+        subtitle = branding.Subtitle or 'Digitale Eignungsprüfung',
+        certificateTitle = branding.CertificateTitle or 'Zertifikat über die bestandene Eignungsprüfung',
+        staffLabel = branding.StaffLabel or 'Personalwesen',
         examRules = {
             passPercentage = Config.Exam and Config.Exam.PassPercentage or 78,
             categoryMinimum = Config.Exam and Config.Exam.CategoryMinimum or 55,
@@ -74,7 +79,7 @@ RegisterCommand(Config.Command, function()
 end, false)
 
 if Config.DefaultKey and Config.DefaultKey ~= '' then
-    RegisterKeyMapping(Config.Command, 'Polizei-Eignungsprüfung öffnen', 'keyboard', Config.DefaultKey)
+    RegisterKeyMapping(Config.Command, 'Auswahlverfahren öffnen', 'keyboard', Config.DefaultKey)
 end
 
 RegisterNetEvent('police_exam:client:open', function()

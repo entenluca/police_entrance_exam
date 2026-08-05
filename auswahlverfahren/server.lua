@@ -1,11 +1,13 @@
 local resourceName = GetCurrentResourceName()
 local recordsFile = 'data/records.json'
 local codesFile = 'data/access_codes.json'
+local staffAccountsFile = 'data/staff_accounts.json'
 
 local staffSessions = {}
 local candidateSessions = {}
 local records = {}
 local accessCodes = {}
+local staffAccounts = {}
 
 local function debugPrint(message)
     if Config.Debug then
@@ -81,6 +83,117 @@ end
 
 local function isStaff(playerSource)
     return staffSessions[playerSource] ~= nil
+end
+
+local function getRankLevel(rankName)
+    local ranks = type(Config.StaffRanks) == 'table' and Config.StaffRanks or {}
+    local level = ranks[trim(rankName)]
+    if level ~= nil then
+        return tonumber(level) or 0
+    end
+
+    return 0
+end
+
+local function getPermissionRankLevel(permissionKey)
+    local permissions = type(Config.Permissions) == 'table' and Config.Permissions or {}
+    local required = permissions[permissionKey]
+    if type(required) == 'number' then
+        return required
+    end
+
+    return getRankLevel(required)
+end
+
+local function hasPermission(playerSource, permissionKey)
+    local session = staffSessions[playerSource]
+    if not session then
+        return false
+    end
+
+    return getRankLevel(session.rank) >= getPermissionRankLevel(permissionKey)
+end
+
+local function sanitizeStaffAccount(account)
+    if type(account) ~= 'table' then
+        return nil
+    end
+
+    local username = string.lower(trim(account.username))
+    if username == '' then
+        return nil
+    end
+
+    return {
+        username = username,
+        password = tostring(account.password or ''),
+        displayName = trim(account.displayName) ~= '' and trim(account.displayName) or username,
+        rank = trim(account.rank) ~= '' and trim(account.rank) or 'Personalwesen',
+    }
+end
+
+local function findStaffAccountIndex(username)
+    local wanted = string.lower(trim(username))
+    if wanted == '' then
+        return nil
+    end
+
+    for index, account in ipairs(staffAccounts) do
+        if string.lower(trim(account.username)) == wanted then
+            return index
+        end
+    end
+
+    return nil
+end
+
+local function saveStaffAccounts()
+    return saveArray(staffAccountsFile, staffAccounts)
+end
+
+local function loadStaffAccounts()
+    local decoded = decodeArray(LoadResourceFile(resourceName, staffAccountsFile))
+    if decoded and #decoded > 0 then
+        local loaded = {}
+        for _, account in ipairs(decoded) do
+            local sanitized = sanitizeStaffAccount(account)
+            if sanitized then
+                loaded[#loaded + 1] = sanitized
+            end
+        end
+
+        if #loaded > 0 then
+            staffAccounts = loaded
+            return
+        end
+    end
+
+    staffAccounts = {}
+    for _, account in ipairs(Config.StaffAccounts or {}) do
+        local sanitized = sanitizeStaffAccount(account)
+        if sanitized then
+            staffAccounts[#staffAccounts + 1] = sanitized
+        end
+    end
+
+    saveStaffAccounts()
+end
+
+local function getStaffSessionPayload(playerSource)
+    local session = staffSessions[playerSource]
+    if not session then
+        return nil
+    end
+
+    return {
+        ok = true,
+        success = true,
+        displayName = session.displayName,
+        rank = session.rank,
+        username = session.username,
+        canChangePassword = hasPermission(playerSource, 'ChangePasswordMinRank'),
+        canResetStaffPassword = hasPermission(playerSource, 'ResetStaffPasswordMinRank'),
+    }
 end
 
 local function deny(message)
@@ -288,7 +401,7 @@ local function generateCandidateId()
     end
 
     return ('%s-%s-%s-%d-%d'):format(
-        BrandingConfig.CandidateIdPrefix or 'PIH-EAV',
+        (Config.Branding and Config.Branding.CandidateIdPrefix) or 'PIH-EAV',
         year,
         date,
         sequence,
@@ -319,7 +432,7 @@ local function generateCertificateNumber(record)
         compactId = tostring(math.random(10000000, 99999999))
     end
 
-    local prefix = BrandingConfig.CertificatePrefix or 'PIH-ZERT'
+    local prefix = (Config.Branding and Config.Branding.CertificatePrefix) or 'PIH-ZERT'
     local base = ('%s-%s-%s'):format(prefix, completedYear, compactId)
     if not certificateNumberExists(base) then
         return base
@@ -438,19 +551,15 @@ local function handleRpc(playerSource, action, payload)
         local username = string.lower(trim(payload.username))
         local password = trim(payload.password)
 
-        for _, account in ipairs(Config.StaffAccounts or {}) do
+        for _, account in ipairs(staffAccounts) do
             if string.lower(trim(account.username)) == username and tostring(account.password or '') == password then
                 staffSessions[playerSource] = {
+                    username = account.username,
                     displayName = account.displayName or account.username,
                     rank = account.rank or 'Personalwesen'
                 }
 
-                return {
-                    ok = true,
-                    success = true,
-                    displayName = staffSessions[playerSource].displayName,
-                    rank = staffSessions[playerSource].rank
-                }
+                return getStaffSessionPayload(playerSource)
             end
         end
 
@@ -461,6 +570,117 @@ local function handleRpc(playerSource, action, payload)
     if action == 'auth:logout' then
         staffSessions[playerSource] = nil
         return { ok = true }
+    end
+
+    if action == 'auth:session' then
+        if not isStaff(playerSource) then
+            return { ok = true, success = false }
+        end
+
+        return getStaffSessionPayload(playerSource)
+    end
+
+    if action == 'auth:changePassword' then
+        if not isStaff(playerSource) then
+            return deny()
+        end
+
+        if not hasPermission(playerSource, 'ChangePasswordMinRank') then
+            return deny('Ihr Rang erlaubt keine Passwortänderung im System.')
+        end
+
+        local currentPassword = trim(payload.currentPassword)
+        local newPassword = trim(payload.newPassword)
+        if #newPassword < 8 then
+            return deny('Das neue Passwort muss mindestens 8 Zeichen lang sein.')
+        end
+        if newPassword == currentPassword then
+            return deny('Das neue Passwort muss sich vom aktuellen unterscheiden.')
+        end
+
+        local session = staffSessions[playerSource]
+        local accountIndex = findStaffAccountIndex(session.username)
+        if not accountIndex then
+            return deny('Das Personal-Konto wurde nicht gefunden.')
+        end
+
+        local account = staffAccounts[accountIndex]
+        if tostring(account.password or '') ~= currentPassword then
+            return deny('Das aktuelle Passwort ist falsch.')
+        end
+
+        local previousPassword = account.password
+        account.password = newPassword
+        staffAccounts[accountIndex] = account
+
+        if not saveStaffAccounts() then
+            account.password = previousPassword
+            staffAccounts[accountIndex] = account
+            return deny('Das neue Passwort konnte nicht gespeichert werden.')
+        end
+
+        return { ok = true, success = true }
+    end
+
+    if action == 'auth:resetStaffPassword' then
+        if not isStaff(playerSource) then
+            return deny()
+        end
+
+        if not hasPermission(playerSource, 'ResetStaffPasswordMinRank') then
+            return deny('Ihr Rang erlaubt keine Passwort-Zurücksetzung für andere Konten.')
+        end
+
+        local targetUsername = string.lower(trim(payload.username))
+        local newPassword = trim(payload.newPassword)
+        if targetUsername == '' or #newPassword < 8 then
+            return deny('Bitte Benutzername und ein Passwort mit mindestens 8 Zeichen angeben.')
+        end
+
+        local accountIndex = findStaffAccountIndex(targetUsername)
+        if not accountIndex then
+            return deny('Das angegebene Personal-Konto wurde nicht gefunden.')
+        end
+
+        local account = staffAccounts[accountIndex]
+        local actorRank = getRankLevel(staffSessions[playerSource].rank)
+        local targetRank = getRankLevel(account.rank)
+        if targetRank > actorRank then
+            return deny('Sie können das Passwort für Konten mit höherem Rang nicht ändern.')
+        end
+
+        local previousPassword = account.password
+        account.password = newPassword
+        staffAccounts[accountIndex] = account
+
+        if not saveStaffAccounts() then
+            account.password = previousPassword
+            staffAccounts[accountIndex] = account
+            return deny('Das Passwort konnte nicht gespeichert werden.')
+        end
+
+        return { ok = true, success = true, username = account.username }
+    end
+
+    if action == 'staff:list' then
+        if not isStaff(playerSource) then
+            return deny()
+        end
+
+        if not hasPermission(playerSource, 'ResetStaffPasswordMinRank') then
+            return deny('Keine Berechtigung zur Kontenübersicht.')
+        end
+
+        local result = {}
+        for _, account in ipairs(staffAccounts) do
+            result[#result + 1] = {
+                username = account.username,
+                displayName = account.displayName,
+                rank = account.rank,
+            }
+        end
+
+        return result
     end
 
     if action == 'records:get' then
@@ -770,9 +990,10 @@ AddEventHandler('onResourceStart', function(startedResource)
     math.random()
     math.random()
 
+    loadStaffAccounts()
     records = loadArray(recordsFile)
     accessCodes = loadArray(codesFile)
-    print(('[%s] Gestartet: %d Akten, %d Zugangscodes geladen.'):format(resourceName, #records, #accessCodes))
+    print(('[%s] Gestartet: %d Personal-Konten, %d Akten, %d Zugangscodes geladen.'):format(resourceName, #staffAccounts, #records, #accessCodes))
 end)
 
 AddEventHandler('onResourceStop', function(stoppedResource)
@@ -780,6 +1001,7 @@ AddEventHandler('onResourceStop', function(stoppedResource)
         return
     end
 
+    saveStaffAccounts()
     saveArray(recordsFile, records)
     saveArray(codesFile, accessCodes)
 end)
