@@ -39,7 +39,8 @@ restart auswahlverfahren
 | `Config.Exam` | Bestehensgrenzen |
 | `Config.Branding` | Dienststelle, Logo, Titel |
 | `Config.StaffAccounts` | Start-Personal-Konten |
-| `Config.Police` | Police-Job & Framework |
+| `Config.TabletAccess` | Job-Prüfung für Tablet-Befehl |
+| `Config.ExamStartPoints` | Bewerber-Startpunkte (E-Taste) |
 | `Config.Permissions` | Erlaubte Rang-IDs für Passwortänderung |
 | `Config.ExamQuestions` | Lösungsschlüssel (serverseitig) |
 

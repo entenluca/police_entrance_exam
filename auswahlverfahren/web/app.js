@@ -1270,7 +1270,7 @@
         el('div', { className: 'settings-section' },
           el('div', { className: 'eyebrow', text: 'Eigenes Konto' }),
           el('h2', { text: 'Passwort ändern' }),
-          el('p', { className: 'muted', text: 'Nur Police-Ränge, die in der config.lua unter ChangePasswordRankIds eingetragen sind, dürfen hier das Passwort ändern.' }),
+          el('p', { className: 'muted', text: 'Nur Police-Ränge aus ChangePasswordRankIds in der config.lua. Das neue Passwort wird serverseitig gespeichert.' }),
           el('form', { id: 'change-password-form' },
             field('Aktuelles Passwort', el('input', { className: 'input', id: 'current-password', type: 'password', autocomplete: 'current-password', required: true })),
             field('Neues Passwort', el('input', { className: 'input', id: 'new-password', type: 'password', autocomplete: 'new-password', minLength: 8, required: true })),

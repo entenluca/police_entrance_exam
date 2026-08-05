@@ -29,6 +29,38 @@ Config.Exam = {
     ExcellentPercentage = 88,
 }
 
+-- Tablet-Zugriff: nur gelistete Jobs dürfen per Befehl/Keybind öffnen (leere Liste = alle)
+Config.TabletAccess = {
+    Jobs = {
+        { name = 'police', minGrade = 0 },
+    },
+    DenyMessage = 'Du hast nicht den erforderlichen Job, um das Tablet zu öffnen.',
+}
+
+-- Prüfungs-Startpunkte für Bewerber (vector4 = x, y, z, heading)
+Config.ExamStartPoints = {
+    {
+        coords = vector4(441.18, -981.13, 30.69, 90.0),
+        label = 'Eignungsprüfung starten',
+        radius = 2.0,
+        drawDistance = 25.0,
+        placePlayer = true,
+        blip = {
+            enabled = true,
+            sprite = 498,
+            color = 3,
+            scale = 0.75,
+            label = 'Auswahlverfahren',
+        },
+        marker = {
+            enabled = true,
+            type = 1,
+            size = vector3(1.4, 1.4, 0.55),
+            color = { r = 10, g = 77, b = 143, a = 140 },
+        },
+    },
+}
+
 -- Police-Job für Rangprüfung (ESX/QBCore). Framework: auto | esx | qbcore | none
 Config.Police = {
     JobName = 'police',
