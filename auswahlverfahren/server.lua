@@ -85,24 +85,88 @@ local function isStaff(playerSource)
     return staffSessions[playerSource] ~= nil
 end
 
-local function getRankLevel(rankName)
-    local ranks = type(Config.StaffRanks) == 'table' and Config.StaffRanks or {}
-    local level = ranks[trim(rankName)]
-    if level ~= nil then
-        return tonumber(level) or 0
+local function detectPoliceFramework()
+    local police = type(Config.Police) == 'table' and Config.Police or {}
+    local configured = trim(police.Framework or 'auto')
+    if configured ~= '' and configured ~= 'auto' then
+        return string.lower(configured)
+    end
+
+    if GetResourceState('es_extended') == 'started' then
+        return 'esx'
+    end
+
+    if GetResourceState('qb-core') == 'started' then
+        return 'qbcore'
+    end
+
+    return 'none'
+end
+
+local function getPlayerPoliceRankId(playerSource)
+    local police = type(Config.Police) == 'table' and Config.Police or {}
+    local jobName = trim(police.JobName or 'police')
+    local framework = detectPoliceFramework()
+
+    if framework == 'esx' then
+        local ok, ESX = pcall(function()
+            return exports['es_extended']:getSharedObject()
+        end)
+        if ok and ESX then
+            local xPlayer = ESX.GetPlayerFromId(playerSource)
+            if xPlayer and xPlayer.job and trim(xPlayer.job.name) == jobName then
+                return tonumber(xPlayer.job.grade) or 0
+            end
+        end
+    elseif framework == 'qbcore' then
+        local ok, QBCore = pcall(function()
+            return exports['qb-core']:GetCoreObject()
+        end)
+        if ok and QBCore then
+            local player = QBCore.Functions.GetPlayer(playerSource)
+            local job = player and player.PlayerData and player.PlayerData.job
+            if job and trim(job.name) == jobName then
+                if type(job.grade) == 'table' then
+                    return tonumber(job.grade.level) or tonumber(job.grade.grade) or 0
+                end
+                return tonumber(job.grade) or 0
+            end
+        end
+    end
+
+    return nil
+end
+
+local function formatRankLabel(rankId)
+    local numericRank = tonumber(rankId)
+    if numericRank == nil then
+        return 'Unbekannter Rang'
+    end
+
+    return ('Police Rang %d'):format(numericRank)
+end
+
+local function resolveStaffRankId(playerSource, account)
+    local liveRankId = getPlayerPoliceRankId(playerSource)
+    if liveRankId ~= nil then
+        return liveRankId
+    end
+
+    return tonumber(account and account.rankId) or 0
+end
+
+local function getPermissionRankId(permissionKey)
+    local permissions = type(Config.Permissions) == 'table' and Config.Permissions or {}
+
+    if permissionKey == 'ChangePasswordMinRank' or permissionKey == 'ChangePasswordMinRankId' then
+        return tonumber(permissions.ChangePasswordMinRankId) or 0
+    end
+
+    if permissionKey == 'ResetStaffPasswordMinRank' or permissionKey == 'ResetStaffPasswordMinRankId' then
+        return tonumber(permissions.ResetStaffPasswordMinRankId) or 0
     end
 
     return 0
-end
-
-local function getPermissionRankLevel(permissionKey)
-    local permissions = type(Config.Permissions) == 'table' and Config.Permissions or {}
-    local required = permissions[permissionKey]
-    if type(required) == 'number' then
-        return required
-    end
-
-    return getRankLevel(required)
 end
 
 local function hasPermission(playerSource, permissionKey)
@@ -111,7 +175,8 @@ local function hasPermission(playerSource, permissionKey)
         return false
     end
 
-    return getRankLevel(session.rank) >= getPermissionRankLevel(permissionKey)
+    local rankId = tonumber(session.rankId) or 0
+    return rankId >= getPermissionRankId(permissionKey)
 end
 
 local function sanitizeStaffAccount(account)
@@ -128,7 +193,7 @@ local function sanitizeStaffAccount(account)
         username = username,
         password = tostring(account.password or ''),
         displayName = trim(account.displayName) ~= '' and trim(account.displayName) or username,
-        rank = trim(account.rank) ~= '' and trim(account.rank) or 'Personalwesen',
+        rankId = tonumber(account.rankId) or 0,
     }
 end
 
@@ -179,20 +244,37 @@ local function loadStaffAccounts()
     saveStaffAccounts()
 end
 
+local function refreshStaffSessionRank(playerSource)
+    local session = staffSessions[playerSource]
+    if not session then
+        return
+    end
+
+    local accountIndex = findStaffAccountIndex(session.username)
+    local account = accountIndex and staffAccounts[accountIndex] or nil
+    local rankId = resolveStaffRankId(playerSource, account)
+    session.rankId = rankId
+    session.rank = formatRankLabel(rankId)
+end
+
 local function getStaffSessionPayload(playerSource)
     local session = staffSessions[playerSource]
     if not session then
         return nil
     end
 
+    refreshStaffSessionRank(playerSource)
+    session = staffSessions[playerSource]
+
     return {
         ok = true,
         success = true,
         displayName = session.displayName,
         rank = session.rank,
+        rankId = session.rankId,
         username = session.username,
-        canChangePassword = hasPermission(playerSource, 'ChangePasswordMinRank'),
-        canResetStaffPassword = hasPermission(playerSource, 'ResetStaffPasswordMinRank'),
+        canChangePassword = hasPermission(playerSource, 'ChangePasswordMinRankId'),
+        canResetStaffPassword = hasPermission(playerSource, 'ResetStaffPasswordMinRankId'),
     }
 end
 
@@ -553,10 +635,12 @@ local function handleRpc(playerSource, action, payload)
 
         for _, account in ipairs(staffAccounts) do
             if string.lower(trim(account.username)) == username and tostring(account.password or '') == password then
+                local rankId = resolveStaffRankId(playerSource, account)
                 staffSessions[playerSource] = {
                     username = account.username,
                     displayName = account.displayName or account.username,
-                    rank = account.rank or 'Personalwesen'
+                    rankId = rankId,
+                    rank = formatRankLabel(rankId),
                 }
 
                 return getStaffSessionPayload(playerSource)
@@ -585,8 +669,11 @@ local function handleRpc(playerSource, action, payload)
             return deny()
         end
 
-        if not hasPermission(playerSource, 'ChangePasswordMinRank') then
-            return deny('Ihr Rang erlaubt keine Passwortänderung im System.')
+        if not hasPermission(playerSource, 'ChangePasswordMinRankId') then
+            return deny(('Ihr Police-Rang (%d) erlaubt keine Passwortänderung. Mindestens Rang %d erforderlich.'):format(
+                tonumber(staffSessions[playerSource].rankId) or 0,
+                getPermissionRankId('ChangePasswordMinRankId')
+            ))
         end
 
         local currentPassword = trim(payload.currentPassword)
@@ -627,8 +714,11 @@ local function handleRpc(playerSource, action, payload)
             return deny()
         end
 
-        if not hasPermission(playerSource, 'ResetStaffPasswordMinRank') then
-            return deny('Ihr Rang erlaubt keine Passwort-Zurücksetzung für andere Konten.')
+        if not hasPermission(playerSource, 'ResetStaffPasswordMinRankId') then
+            return deny(('Ihr Police-Rang (%d) erlaubt keine Passwort-Zurücksetzung. Mindestens Rang %d erforderlich.'):format(
+                tonumber(staffSessions[playerSource].rankId) or 0,
+                getPermissionRankId('ResetStaffPasswordMinRankId')
+            ))
         end
 
         local targetUsername = string.lower(trim(payload.username))
@@ -643,10 +733,10 @@ local function handleRpc(playerSource, action, payload)
         end
 
         local account = staffAccounts[accountIndex]
-        local actorRank = getRankLevel(staffSessions[playerSource].rank)
-        local targetRank = getRankLevel(account.rank)
-        if targetRank > actorRank then
-            return deny('Sie können das Passwort für Konten mit höherem Rang nicht ändern.')
+        local actorRankId = tonumber(staffSessions[playerSource].rankId) or 0
+        local targetRankId = tonumber(account.rankId) or 0
+        if targetRankId > actorRankId then
+            return deny('Sie können das Passwort für Konten mit höherem Police-Rang nicht ändern.')
         end
 
         local previousPassword = account.password
@@ -667,7 +757,7 @@ local function handleRpc(playerSource, action, payload)
             return deny()
         end
 
-        if not hasPermission(playerSource, 'ResetStaffPasswordMinRank') then
+        if not hasPermission(playerSource, 'ResetStaffPasswordMinRankId') then
             return deny('Keine Berechtigung zur Kontenübersicht.')
         end
 
@@ -676,7 +766,8 @@ local function handleRpc(playerSource, action, payload)
             result[#result + 1] = {
                 username = account.username,
                 displayName = account.displayName,
-                rank = account.rank,
+                rankId = account.rankId,
+                rank = formatRankLabel(account.rankId),
             }
         end
 

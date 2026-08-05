@@ -1284,7 +1284,7 @@
     if (state.canResetStaffPassword) {
       const accountItems = state.staffAccounts.map((account) => el('div', { className: 'code-item' },
         el('strong', { text: account.displayName || account.username }),
-        el('div', { className: 'small muted', text: `${account.username} · ${account.rank || '–'}` }),
+        el('div', { className: 'small muted', text: `${account.username} · ${account.rank || `Rang ${account.rankId ?? '–'}`}` }),
         el('form', { className: 'inline-reset-form', dataset: { resetUser: account.username } },
           field('Neues Passwort', el('input', { className: 'input', type: 'password', autocomplete: 'new-password', minLength: 8, required: true })),
           el('button', { className: 'btn btn-secondary', type: 'submit', text: 'Passwort zurücksetzen' }),
@@ -1295,7 +1295,7 @@
         el('div', { className: 'settings-section', style: { marginTop: '24px' } },
           el('div', { className: 'eyebrow', text: 'Personalverwaltung' }),
           el('h2', { text: 'Passwörter anderer Konten' }),
-          el('p', { className: 'muted', text: 'Nur für Konten mit gleichem oder niedrigerem Rang verfügbar.' }),
+          el('p', { className: 'muted', text: 'Nur für Police-Ränge mit ausreichender Berechtigung. Der Rang wird aus dem Police-Job (grade) gelesen.' }),
           el('div', { className: 'code-list' },
             accountItems.length ? frag(...accountItems) : el('div', { className: 'empty', text: 'Keine Personal-Konten gefunden.' }),
           ),

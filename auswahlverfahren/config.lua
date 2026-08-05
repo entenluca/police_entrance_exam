@@ -29,17 +29,16 @@ Config.Exam = {
     ExcellentPercentage = 88,
 }
 
--- Rang-Hierarchie (höherer Wert = mehr Rechte)
-Config.StaffRanks = {
-    Administration = 100,
-    Leitung = 75,
-    Personalwesen = 50,
+-- Police-Job für Rangprüfung (ESX/QBCore). Framework: auto | esx | qbcore | none
+Config.Police = {
+    JobName = 'police',
+    Framework = 'auto',
 }
 
--- Berechtigungen (Mindestrang als Name aus Config.StaffRanks)
+-- Berechtigungen über Police-Rang-ID (job.grade). Höhere ID = mehr Rechte.
 Config.Permissions = {
-    ChangePasswordMinRank = 'Leitung',
-    ResetStaffPasswordMinRank = 'Administration',
+    ChangePasswordMinRankId = 5,
+    ResetStaffPasswordMinRankId = 8,
 }
 
 -- Personal-Zugangsdaten (werden beim ersten Start nach data/staff_accounts.json übernommen)
@@ -48,7 +47,7 @@ Config.StaffAccounts = {
         username = 'admin',
         password = 'PoliceExam2026!',
         displayName = 'Personalwesen',
-        rank = 'Administration',
+        rankId = 8,
     },
 }
 

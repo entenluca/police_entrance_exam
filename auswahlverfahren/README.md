@@ -39,9 +39,25 @@ restart auswahlverfahren
 | `Config.Exam` | Bestehensgrenzen |
 | `Config.Branding` | Dienststelle, Logo, Titel |
 | `Config.StaffAccounts` | Start-Personal-Konten |
-| `Config.StaffRanks` | Rang-Hierarchie |
-| `Config.Permissions` | Wer Passwörter ändern darf |
+| `Config.Police` | Police-Job & Framework |
+| `Config.Permissions` | Mindest-Rang-IDs für Passwortänderung |
 | `Config.ExamQuestions` | Lösungsschlüssel (serverseitig) |
+
+### Police-Rang-IDs (Berechtigungen)
+
+```lua
+Config.Police = {
+    JobName = 'police',
+    Framework = 'auto', -- auto | esx | qbcore | none
+}
+
+Config.Permissions = {
+    ChangePasswordMinRankId = 5,   -- ab Police-Rang 5 eigenes Passwort ändern
+    ResetStaffPasswordMinRankId = 8, -- ab Police-Rang 8 andere Konten zurücksetzen
+}
+```
+
+Der Rang wird live aus dem Police-Job gelesen (`job.grade`). Ohne ESX/QBCore wird `rankId` aus dem Personal-Konto verwendet.
 
 ### Personal-Zugang (Standard)
 
@@ -51,7 +67,7 @@ Config.StaffAccounts = {
         username = 'admin',
         password = 'DEIN_SICHERES_PASSWORT',
         displayName = 'Personalwesen',
-        rank = 'Administration',
+        rankId = 8,
     },
 }
 ```
@@ -63,9 +79,9 @@ Standardzugang der ausgelieferten Version:
 
 ### Passwort im System ändern
 
-Ab dem in `Config.Permissions.ChangePasswordMinRank` festgelegten Rang kann Personal das eigene Passwort im Admin-Bereich unter **Einstellungen** ändern.
+Ab Police-Rang **5** (`ChangePasswordMinRankId`) kann Personal das eigene Passwort unter **Einstellungen** ändern.
 
-Mit Rang `Administration` (`ResetStaffPasswordMinRank`) können zusätzlich Passwörter anderer Konten zurückgesetzt werden.
+Ab Police-Rang **8** (`ResetStaffPasswordMinRankId`) können Passwörter anderer Konten zurückgesetzt werden.
 
 Geänderte Passwörter werden in `data/staff_accounts.json` gespeichert und überleben einen Neustart.
 
